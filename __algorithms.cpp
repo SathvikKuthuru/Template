@@ -20,6 +20,7 @@ ostream &operator<<(enable_if_t<!is_same_v<T<Args...>, string>, ostream> &out, c
 	for(auto &x: arr) out << x << " "; return out << "\n";
 }
 mt19937 rnd(chrono::steady_clock::now().time_since_epoch().count());
+mt19937_64 rndll(chrono::steady_clock::now().time_since_epoch().count());
 #define all(a) a.begin(), a.end()
 #define sz(a) (int)a.size()
 typedef long long ll;
@@ -62,6 +63,8 @@ Category
 		156485479_1_8
 	1.9. Chinese Remainder Theorem
 		156485479_1_9
+	1.10. Lehman Factorization
+		156485479_1_10
 
 
 2. Numeric
@@ -102,6 +105,8 @@ Category
 				156485479_2_4_2_2 ( INCOMPLETE )
 	2.5. Kadane
 		156485479_2_5
+	2.6. Divide and Conquer DP Optimization
+		156485479_2_6
 
 
 3. Data Structure
@@ -136,11 +141,13 @@ Category
 	3.6. Monotone Stack
 		156485479_3_6
 	3.7. Line Container
-		156485479_3_7 ( NOT THOROUGHLY TESTED YET )
+		156485479_3_7
 	3.8. Persistent Array
 		156485479_3_8
 	3.9. Persistent Disjoint Set
 		156485479_3_9
+	3.10. Li Chao Tree
+		156485479_3_10
 
 
 4. Graph
@@ -165,6 +172,8 @@ Category
 			156485479_4_4_3
 		4.4.4. Centroid Decomposition
 			156485479_4_4_4
+		4.4.5. AHU Algorithm ( Rooted Tree Isomorphism ) / Tree Isomorphism
+			156485479_4_4_5
 
 5. String
 	5.1. Lexicographically Minimal Rotation
@@ -369,11 +378,23 @@ vector<ull> factorize(ull n){
 // 156485479_1_8
 // Tonelli Shanks Algorithm ( Solution to x^2 = a mod p )
 // O(log^2 p)
+ll modexp(ll b, ll e, const ll &mod){
+	ll res = 1;
+	for(; e; b = b * b % mod, e /= 2){
+		if(e & 1){
+			res = res * b % mod;
+		}
+	}
+	return res;
+}
+ll modinv(ll b, const ll &mod){
+	return modexp(b, mod - 2, mod);
+}
 ll sqrt(ll a, ll p){
 	a %= p;
 	if(a < 0) a += p;
 	if(a == 0) return 0;
-	assert(modexp(a, (p-1)/2, p) == 1);
+	assert(modexp(a, (p - 1)/2, p) == 1);
 	if(p % 4 == 3) return modexp(a, (p+1)/4, p);
 	// a^(n+3)/8 or 2^(n+3)/8 * 2^(n-1)/4 works if p % 8 == 5
 	ll s = p - 1, n = 2;
@@ -407,14 +428,12 @@ ll euclid(ll x, ll y, ll &a, ll &b){
 	}
 	return a = 1, b = 0, x;
 }
-
 ll crt_coprime(ll a, ll m, ll b, ll n){
 	ll x, y; euclid(m, n, x, y);
 	ll res = a * (y + m) % m * n + b * (x + n) % n * m;
 	if(res >= m * n) res -= m * n;
 	return res;
 }
-
 ll crt(ll a, ll m, ll b, ll n){
 	ll d = gcd(m, n);
 	if(((b -= a) %= n) < 0) b += n;
@@ -422,6 +441,26 @@ ll crt(ll a, ll m, ll b, ll n){
 	return d * crt_coprime(0LL, m/d, b/d, n/d) + a;
 }
 
+// 156485479_1_10
+// Lehman Factorization / return a prime divisor of x
+// x has to be equal or less than 10^14
+// O(N^1/3)
+ll primefactor(ll x){
+	assert(x > 1);
+	if(x <= 21){
+		for(ll p = 2; p <= sqrt(x); ++ p) if(x % p == 0) return p;
+		return x;
+	}
+	for(ll p = 2; p <= cbrt(x); ++ p) if(x % p == 0) return p;
+	for(ll k = 1; k <= cbrt(x); ++ k){
+		double t = 2 * sqrt(k * x);
+		for(ll a = ceil(t); a <= floor(t + cbrt(sqrt(x)) / 4 / sqrt(k)); ++ a){
+			ll b = a * a - 4 * k * x, s = sqrt(b);
+			if(b == s * s) return gcd(a + s, x);
+		}
+	}
+	return x;
+}
 
 // 156485479_2_1
 // Linear Recurrence Relation Solver / Berlekamp - Massey Algorithm
@@ -1065,6 +1104,25 @@ T kadane(const vector<T> &arr){
 	return gm;
 }
 
+// 156485479_2_6
+// Divide and Conquer DP Optimization
+// Recurrence relation of form: dp_next[j] = min{k=0~j-1} (dp[k] + C[k][j])
+// Must satisfy opt[j] <= opt[j + 1]
+// Special case: for all a<=b<=c<=d, C[a][c] + C[b][d] <= C[a][d] + C[b][d] ( C is a Monge array )
+// O(N log N)
+template<class T>
+void DCDP(vector<T> &dp, vector<T> &dp_next, const vector<vector<T>> &C, int l, int r, int optl, int optr){
+	if(l >= r) return;
+	int mid = l + r >> 1;
+	pair<T, int> res{numeric_limits<T>::max(), -1};
+	for(int i = optl; i < min(mid, optr); ++ i){
+		res = min(res, {dp[i] + C[i][mid], i});
+	}
+	dp_next[mid] = res.first;
+	DCDP(dp, dp_next, C, l, mid, optl, res.second + 1);
+	DCDP(dp, dp_next, C, mid + 1, r, res.second, optr);
+}
+
 // 156485479_3_1
 // Sparse Table
 // The binary operator must be idempotent and associative
@@ -1285,6 +1343,10 @@ struct ldseg{
 		if(ql <= low && high <= qr) return val;
 		push();
 		return qop(l->query(ql, qr), r->query(ql, qr));
+	}
+	void print(){
+		cout << "range = [" << low << ", " << high << "), val = " << val << ", lazy = " << lazy << endl;
+		if(l) l->print(), r->print();
 	}
 };
 
@@ -1527,31 +1589,32 @@ struct monotone_stack: vector<T>{
 };
 
 // 156485479_3_7
-// Line Container
+// Line Container / Add lines of form kX + m and query max at pos x
 // O(log N) per query
 struct line{
 	mutable ll k, m, p;
-	bool operator<(const Line& o) const{return k < o.k;}
+	bool operator<(const line& o) const{return k < o.k;}
 	bool operator<(ll x) const{return p < x;}
 };
-struct lines: multiset<line, less<>>{
+struct linecontainer: multiset<line, less<>>{
+	// (for doubles, use inf = 1/.0, div(a,b) = a/b)
 	const ll inf = LLONG_MAX;
-	ll div(ll a, ll b) { // floored division
-		return a / b - ((a ^ b) < 0 && a % b); }
-	bool isect(iterator x, iterator y) {
-		if (y == end()) { x->p = inf; return false; }
-		if (x->k == y->k) x->p = x->m > y->m ? inf : -inf;
+	ll div(ll a, ll b){
+		return a / b - ((a ^ b) < 0 && a % b);
+	}
+	bool isect(iterator x, iterator y){
+		if(y == end()){x->p = inf; return false;}
+		if(x->k == y->k) x->p = x->m > y->m ? inf : -inf;
 		else x->p = div(y->m - x->m, x->k - y->k);
 		return x->p >= y->p;
 	}
-	void insert(ll k, ll m) {
-		auto z = insert({k, m, 0}), y = z++, x = y;
-		while (isect(y, z)) z = erase(z);
-		if (x != begin() && isect(--x, y)) isect(x, y = erase(y));
-		while ((y = x) != begin() && (--x)->p >= y->p)
-			isect(x, erase(y));
+	void push(ll k, ll m){
+		auto z = insert({k, m, 0}), y = z ++, x = y;
+		while(isect(y, z)) z = erase(z);
+		if(x != begin() && isect(-- x, y)) isect(x, y = erase(y));
+		while((y = x) != begin() && (--x)->p >= y->p) isect(x, erase(y));
 	}
-	ll query(ll x) {
+	ll query(ll x){
 		assert(!empty());
 		auto l = *lower_bound(x);
 		return l.k * x + l.m;
@@ -1635,88 +1698,112 @@ struct pdisjoint{
 	}
 };
 
+// 156485479_3_10
+// Li Chao Tree
+// O(log N) per update and query
+struct line{
+	ll k, m;
+	line(ll k, ll m): k(k), m(m){ }
+	line(): line(0, -(ll)9e18){ }
+	ll eval(ll x){
+		return k * x + m;
+	}
+	bool majorize(line X, ll L, ll R){ 
+		return eval(L) >= X.eval(L) && eval(R) >= X.eval(R); 
+	}
+};
+struct lichao{
+	lichao* c[2];
+	line S;
+	lichao(): S(line()){
+		c[0] = c[1] = NULL;
+	}
+	void rm(){
+		if(c[0]) c[0]->rm();
+		if(c[1]) c[1]->rm();
+		delete this;
+	}
+	void mc(int i){
+		if(!c[i]) c[i] = new lichao();
+	}
+	ll query(ll X, ll L, ll R){
+		ll ans = S.eval(X), M = L + R >> 1;
+		if(X < M) return max(ans, c[0] ? c[0]->query(X, L, M) : -(ll)9e18);
+		return max(ans, c[1] ? c[1]->query(X, M, R) : -(ll)9e18);
+	}
+	void modify(line X, ll L, ll R){
+		if(X.majorize(S, L, R)) swap(X, S);
+		if(S.majorize(X, L, R)) return;
+		if(S.eval(L) < X.eval(L)) swap(X, S);
+		ll M = L + R >> 1;
+		if(X.eval(M) > S.eval(M)) swap(X, S), mc(0), c[0]->modify(X, L, M);
+		else mc(1), c[1]->modify(X, M, R);
+	}
+};
+
 // 156485479_4_1
 // Strongly Connected Component ( Tarjan's Algorithm )
 // O(n + m)
 template<class G, class F>
-int scc(G& g, F f){
-	int n = g.size();
-	vi val(n, 0), comp(n, -1), z, cont;
+int scc(const G &g, F f){
+	int n = sz(g);
+	vi val(n, 0), comp(n, -1), z, cur;
 	int Time = 0, ncomps = 0;
-	function<int(int, G &, F)> dfs = [&](int j, G &g, F f){
-		int low = val[j] = ++ Time, x;
-		z.push_back(j);
-		for(auto &e: g[j]) if(comp[e] < 0) low = min(low, val[e] ?: dfs(e, g, f));
-		if(low == val[j]){
+	auto dfs = [&](int u, auto &dfs)->int{
+		int low = val[u] = ++ Time, v;
+		z.push_back(u);
+		for(auto v: g[u]) if(comp[v] < 0) low = min(low, val[v] ?: dfs(v, dfs));
+		if(low == val[u]){
 			do{
-				x = z.back(); z.pop_back();
-				comp[x] = ncomps;
-				cont.push_back(x);
-			}while(x != j);
-			f(cont);
-			cont.clear();
+				v = z.back(); z.pop_back();
+				comp[v] = ncomps;
+				cur.push_back(v);
+			}while(v != u);
+			f(cur); // Process SCCs in reverse topological order
+			cur.clear();
 			ncomps++;
 		}
-		return val[j] = low;
+		return val[u] = low;
 	};
-	for(int u = 0; u < n; u ++) if(comp[u] < 0) dfs(u, g, f);
+	for(int u = 0; u < n; u ++) if(comp[u] < 0) dfs(u, dfs);
 	return ncomps;
 }
 
 // 156485479_4_2
 // Biconnected Components
 // O(n + m)
-pair<vi, vector<vi>> bcc(const vector<vi> &adj){
-	int n = adj.size();
-	vector<bool> visited(n);
-	vi tin(n, -1), low(n, -1);
-	vector<vector<bool>> is_bridge(n);
-	for(int u = 0; u < n; u ++){
-		is_bridge[u].resize(adj[u].size());
-	}
-	int timer = 0;
-	function<void(int, int)> dfs_bridge = [&](int u, int p){
-		visited[u] = true;
-		tin[u] = low[u] = timer ++;
-		for(int i = 0; i < adj[u].size(); i ++){
-			int v = adj[u][i];
-			if(v != p){
-				if(visited[v]){
-					low[u] = min(low[u], tin[v]);
+template<class G, class F, class FF>
+int bcc(const G &g, F f, FF ff = [](int u, int v, int e){}){
+	int n = sz(g);
+	vi num(n), st;
+	int Time = 0, ncomps = 0;
+	auto dfs = [&](int u, int pe, auto &dfs)->int{
+		int me = num[u] = ++ Time, top = me;
+		for(auto [v, e]: g[u]) if(e != pe){
+			if(num[v]){
+				top = min(top, num[v]);
+				if(num[v] < me) st.push_back(e);
+			}
+			else{
+				int si = sz(st);
+				int up = dfs(v, e, dfs);
+				top = min(top, up);
+				if(up == me){
+					st.push_back(e);
+					f(vi(st.begin() + si, st.end())); // Process BCCs (edgelist)
+					st.resize(si);
+					ncomps ++;
 				}
+				else if(up < me) st.push_back(e);
 				else{
-					dfs_bridge(v, u);
-					low[u] = min(low[u], low[v]);
-					if(low[v] > tin[u]){
-						is_bridge[u][i] = true;
-					}
+					ff(u, v, e); // Process bridges
 				}
 			}
 		}
+		return top;
 	};
-	for(int u = 0; u < n; u ++){
-		if(!visited[u]){
-			dfs_bridge(u, u);
-		}
-	}
-	vi assigned(n, -1);
-	vector<vi> component;
-	function<void(int)> assign = [&](int u){
-		assigned[u] = component.size() - 1;
-		component.back().push_back(u);
-		for(int i = 0; i < adj[u].size(); i ++){
-			int v = adj[u][i];
-			if(assigned[v] == -1 && !is_bridge[u][i]){
-				assign(v);
-			}
-		}
-	};
-	for(int u = 0; u < n; u ++){
-		if(assigned[u] == -1){
-			component.push_back(vi()), assign(u);
-		}
-	}
-	return pair<vi, vector<vi>>(assigned, component);
+	for(int u = 0; u < n; u ++) if(!num[u]) dfs(u, -1, dfs);
+	return ncomps;
 }
 
 // 156485479_4_3_1
@@ -2273,6 +2360,107 @@ struct CD: vector<vi>{
 		dfs_centroid(0, -1);
 	}
 };
+
+// 156485479_4_4_5
+// AHU Algorithm ( Rooted Tree Isomorphism ) / Tree Isomorphism
+// O(n)
+void radix_sort(vector<pair<int, vi>> &arr){
+	int n = sz(arr), mxval = 0, mxsz = 1 + accumulate(all(arr), 0, [](int x, const pair<int, vi> &y){return max(x, sz(y.second));});
+	vector<vi> occur(mxsz);
+	for(int i = 0; i < n; ++ i){
+		occur[sz(arr[i].second)].push_back(i);
+		for(auto x: arr[i].second) mxval = max(mxval, x);
+	}
+	mxval ++;
+	for(int size = 1; size < mxsz; ++ size) for(int d = size - 1; d >= 0; -- d){
+		vector<vi> bucket(mxval);
+		for(auto i: occur[size]) bucket[arr[i].second[d]].push_back(i);
+		occur[size].clear();
+		for(auto &b: bucket) for(auto i: b) occur[size].push_back(i);
+	}
+	vector<pair<int, vi>> res;
+	res.reserve(n);
+	for(auto &b: occur) for(auto i: b) res.push_back(arr[i]);
+	swap(res, arr);
+}
+bool isomorphic(const vector<vector<vi>> &adj, const vi &root){
+	int n = sz(adj[0]);
+	if(sz(adj[1]) != n) return false;
+	vector<vector<vi>> occur(2);
+	vector<vi> depth(2, vi(n)), par(2, vi(n, -1));
+	for(int k = 0; k < 2; ++ k){
+		function<void(int, int)> dfs = [&](int u, int p){
+			par[k][u] = p;
+			for(auto v: adj[k][u]) if(v != p){
+				depth[k][v] = depth[k][u] + 1;
+				dfs(v, u);
+			}
+		};
+		dfs(root[k], -1);
+		int mxdepth = 1 + accumulate(all(depth[k]), 0, [](int x, int y){return max(x, y);});
+		occur[k].resize(mxdepth);
+		for(int u = 0; u < n; ++ u) occur[k][depth[k][u]].push_back(u);
+	}
+	int mxdepth = sz(occur[0]);
+	if(mxdepth != sz(occur[1])) return false;
+	for(int d = 0; d < mxdepth; ++ d) if(sz(occur[0][d]) != sz(occur[1][d])) return false;
+	vector<vi> label(2, vi(n)), pos(2, vi(n));
+	vector<vector<vi>> sorted_list(mxdepth, vector<vi>(2));
+	for(int k = 0; k < 2; ++ k){
+		sorted_list[mxdepth - 1][k].reserve(sz(occur[k][mxdepth - 1]));
+		for(auto u: occur[k][mxdepth - 1]) sorted_list[mxdepth - 1][k].push_back(u);
+	}
+	for(int d = mxdepth - 2; d >= 0; -- d){
+		vector<vector<pair<int, vi>>> tuples(2);
+		for(int k = 0; k < 2; ++ k){
+			tuples[k].reserve(sz(occur[k][d]));
+			for(auto u: occur[k][d]){
+				pos[k][u] = sz(tuples[k]);
+				tuples[k].emplace_back(u, vi());
+			}
+			for(auto v: sorted_list[d + 1][k]){
+				int u = par[k][v];
+				tuples[k][pos[k][u]].second.push_back(label[k][v]);
+			}
+			radix_sort(tuples[k]);
+		}
+		for(int i = 0; i < sz(tuples[0]); ++ i) if(tuples[0][i].second != tuples[1][i].second) return false;
+		for(int k = 0; k < 2; ++ k){
+			int cnt = 0;
+			sorted_list[d][k].reserve(sz(occur[k][d]));
+			sorted_list[d][k].push_back(tuples[k][0].first);
+			for(int i = 1; i < sz(tuples[k]); ++ i){
+				int u = tuples[k][i].first;
+				label[k][u] = (tuples[k][i - 1].second == tuples[k][i].second ? cnt : ++ cnt);
+				sorted_list[d][k].push_back(u);
+			}
+		}
+	}
+	return true;
+}
+vi centroid(const vector<vi> &adj){
+	int n = sz(adj);
+	vi size(n, 1);
+	function<void(int, int)> dfs_sz = [&](int u, int p){
+		for(auto v: adj[u]) if(v != p){
+			dfs_sz(v, u);
+			size[u] += size[v];
+		}
+	};
+	dfs_sz(0, -1);
+	function<vi(int, int)> dfs_cent = [&](int u, int p){
+		for(auto v: adj[u]) if(v != p && size[v] > n / 2) return dfs_cent(v, u);
+		for(auto v: adj[u]) if(v != p && n - size[v] <= n / 2) return vi{u, v};
+		return vi{u};
+	};
+	return dfs_cent(0, -1);
+}
+bool isomorphic(const vector<vector<vi>> &adj){
+	vector<vi> cent{centroid(adj[0]), centroid(adj[1])};
+	if(sz(cent[0]) != sz(cent[1])) return false;
+	for(auto u: cent[0]) for(auto v: cent[1]) if(isomorphic(adj, vi{u, v})) return true;
+	return false;
+}
 
 // 156485479_5_1
 // Returns the starting position of the lexicographically minimal rotation
