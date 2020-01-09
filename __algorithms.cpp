@@ -1,45 +1,3 @@
-#include<bits/stdc++.h>
-#include<ext/pb_ds/assoc_container.hpp>
-#include<ext/pb_ds/tree_policy.hpp>
-using namespace std;
-using namespace __gnu_pbds;
-template<class L, class R>
-istream &operator>>(istream &in, pair<L, R> &arr){
-    return in >> arr.first >> arr.second;
-}
-template<class ...Args, template<class...> class T>
-istream &operator>>(enable_if_t<!is_same_v<T<Args...>, string>, istream> &in, T<Args...> &arr){
-	for(auto &x: arr) in >> x; return in;
-}
-template<class L, class R>
-ostream &operator<<(ostream &out, const pair<L, R> &arr){
-    return out << arr.first << " " << arr.second << "\n";
-}
-template<class ...Args, template<class...> class T>
-ostream &operator<<(enable_if_t<!is_same_v<T<Args...>, string>, ostream> &out, const T<Args...> &arr){
-	for(auto &x: arr) out << x << " "; return out << "\n";
-}
-mt19937 rnd(chrono::steady_clock::now().time_since_epoch().count());
-mt19937_64 rndll(chrono::steady_clock::now().time_since_epoch().count());
-#define all(a) a.begin(), a.end()
-#define sz(a) (int)a.size()
-typedef long long ll;
-typedef vector<int> vi;
-typedef vector<ll> vl;
-typedef vector<double> vd;
-typedef vector<string> vs;
-typedef pair<int, int> pii;
-typedef pair<ll, ll> pll;
-typedef pair<int, ll> pil;
-typedef pair<ll, int> pli;
-typedef vector<pii> vpi;
-template<class T>
-using Ftn = function<T(T, T)>;
-template<class T>
-using Tree = tree<T, null_type, less<T>, rb_tree_tag, tree_order_statistics_node_update>;
-typedef tuple<int, int, int> tpl;
-typedef vector<tpl> vtpl;
-
 /******************************************************************************
 Category
 
@@ -107,6 +65,8 @@ Category
 		156485479_2_5
 	2.6. Divide and Conquer DP Optimization
 		156485479_2_6
+	2.7. Binary Search
+		156485479_2_7
 
 
 3. Data Structure
@@ -148,7 +108,10 @@ Category
 		156485479_3_9
 	3.10. Li Chao Tree
 		156485479_3_10
-
+	3.11. Distinct Value Query
+		156485479_3_11
+	3.12. Mo's Algorithm
+		156485479_3_12
 
 4. Graph
 	4.1. Strongly Connected Component ( Tarjan's Algorithm )
@@ -200,7 +163,8 @@ Category
 7. Miscellaneous
 	7.1. Custom Hash Function for unordered_set and unordered map
 		156485479_7_1
-		
+	7.2. Bump Allocator
+		156485479_7_2
 
 *******************************************************************************/
 
@@ -251,10 +215,10 @@ void linearsieve(int n, vi &lpf, vi &prime){
 // 156485479_1_4
 // Combinatorics
 // O(N) preprocessing, O(1) per query
-struct combi{
+struct combinatorics{
 	const ll N, mod;
 	vl inv, fact, invfact;
-	combi(ll N, ll mod):
+	combinatorics(ll N, ll mod):
 		N(N), mod(mod), inv(N + 1), fact(N + 1), invfact(N + 1){
 		inv[1] = 1, fact[0] = fact[1] = invfact[0] = invfact[1] = 1;
 		for(ll i = 2; i <= N; i ++){
@@ -540,7 +504,7 @@ struct recurrence{
 // Find a solution of the system of linear equations. Return -1 if no sol, rank otherwise.
 // O(n^2 m)
 const double eps = 1e-12;
-int solvele(const vector<vd> &AA, vd &x, const vd &bb){
+int solve_linear_equations(const vector<vd> &AA, vd &x, const vd &bb){
 	auto A = AA;
 	auto b = bb;
 	int n = A.size(), m = A[0].size(), rank = 0, br, bc;
@@ -591,7 +555,7 @@ int solvele(const vector<vd> &AA, vd &x, const vd &bb){
 // 156485479_2_2_2
 // Find a solution of the system of linear equations. Return -1 if no sol, rank otherwise.
 // O(n^2 m)
-int solvele(const vector<vl> &AA, vl &x, const vl &bb, ll mod){
+int solve_linear_equations(const vector<vl> &AA, vl &x, const vl &bb, ll mod){
 	auto A = AA;
 	auto b = bb;
 	int n = A.size(), m = A[0].size(), rank = 0, br, bc;
@@ -648,8 +612,7 @@ int solvele(const vector<vl> &AA, vl &x, const vl &bb, ll mod){
 // Find a solution of the system of linear equations. Return -1 if no sol, rank otherwise.
 // O(n^2 m)
 typedef bitset<1000> bs;
-
-int solveLinear(const vector<bs> &AA, bs& x, const vi &bb, int m){
+int solve_linear_equations(const vector<bs> &AA, bs& x, const vi &bb, int m){
 	vector<bs> A(AA);
 	vi b(bb);
 	int n = A.size(), rank = 0, br;
@@ -1123,15 +1086,37 @@ void DCDP(vector<T> &dp, vector<T> &dp_next, const vector<vector<T>> &C, int l, 
 	DCDP(dp, dp_next, C, mid + 1, r, res.second, optr);
 }
 
+// 156485479_2_7
+// Binary Search
+// O(log(high - low))
+template<class Pred>
+ll custom_binary_search(ll low, ll high, Pred p, bool is_left = true){
+	assert(low < high);
+	if(is_left){
+		while(high - low > 1){
+			ll mid = low + (high - low >> 1);
+			p(mid) ? low = mid : high = mid;
+		}
+		return low;
+	}
+	else{
+		while(high - low > 1){
+			ll mid = low + (high - low >> 1);
+			p(mid) ? high = mid : low = mid;
+		}
+		return high;
+	}
+}
+
 // 156485479_3_1
 // Sparse Table
 // The binary operator must be idempotent and associative
 // O(N log N) preprocessing, O(1) per query
 template<class T = int, class BO = function<T(T, T)>>
-struct sparse: vector<vector<T>>{
+struct sparse_table: vector<vector<T>>{
 	int N;
 	BO bin_op;
-	sparse(const vector<T> &arr, BO bin_op = [](T x, T y){return min(x, y);}): N(arr.size()), bin_op(bin_op){
+	sparse_table(const vector<T> &arr, BO bin_op = [](T x, T y){return min(x, y);}): N(arr.size()), bin_op(bin_op){
 		int t = 1, d = 1;
 		while(t < N) t *= 2, d ++;
 		this->assign(d, arr);
@@ -1150,11 +1135,11 @@ struct sparse: vector<vector<T>>{
 // Simple Iterative Segment Tree
 // O(N) preprocessing, O(log N) per query
 template<class T, class BO = function<T(T, T)>>
-struct fastseg: vector<T>{
+struct segment: vector<T>{
 	int N;
 	BO bin_op;
 	const T id;
-	fastseg(const vector<T> &arr, BO bin_op, T id):
+	segment(const vector<T> &arr, BO bin_op, T id):
 	N(arr.size()), bin_op(bin_op), id(id){
 		this->resize(N << 1, id);
 		for(int i = 0; i < N; i ++){
@@ -1184,11 +1169,11 @@ struct fastseg: vector<T>{
 // Iterative Segment Tree with Reversed Operation ( Commutative Operation Only )
 // O(N) Preprocessing, O(1) per query
 template<class T = ll, class BO = function<T(T, T)>>
-struct revfastseg: vector<T>{
+struct reversed_segment: vector<T>{
 	int N;
 	BO bin_op;
 	T id;
-	revfastseg(const vector<T> &arr, BO bin_op, T id):
+	reversed_segment(const vector<T> &arr, BO bin_op, T id):
 		N(arr.size()), bin_op(bin_op), id(id){
 		this->resize(N << 1, id);
 		for(int i = 0; i < N; i ++) (*this)[i + N] = arr[i];
@@ -1222,12 +1207,12 @@ struct revfastseg: vector<T>{
 // Simple Recursive Segment Tree
 // O(N) preprocessing, O(log N) per query
 template<class T, class BO = function<T(T, T)>>
-struct segment{
+struct recursive_segment{
 	int n;
 	vector<T> arr;
 	BO bin_op;
 	T id;
-	segment(const vector<T> &arr, BO bin_op, T id):
+	recursive_segment(const vector<T> &arr, BO bin_op, T id):
 		n(arr.size()), bin_op(bin_op), id(id){
 		this->arr.resize(n << 2, id);
 		build(arr, 1, 0, n);
@@ -1272,25 +1257,25 @@ struct segment{
 // Lazy Dynamic Segment Tree
 // O(1) or O(N) preprocessing, O(log L) or O(log N) per query
 template<class T, class BO1, class BO2, class BO3>
-struct ldseg{
-	ldseg *l = 0, *r = 0;
+struct lazy_segment{
+	lazy_segment *l = 0, *r = 0;
 	int low, high;
-	BO1 lop;		// Lazy op(L, L -> L)
-	BO2 qop;		// Query op(Q, Q -> Q)
-	BO3 aop;		// Apply op(Q, L, len -> Q)
-	vector<T> &id;	// Lazy id(L), Query id(Q), Disable constant(Q)
+	BO1 lop;			// Lazy op(L, L -> L)
+	BO2 qop;			// Query op(Q, Q -> Q)
+	BO3 aop;			// Apply op(Q, L, len -> Q)
+	vector<T> &id;		// Lazy id(L), Query id(Q), Disable constant(Q)
 	T lset, lazy, val;
-	ldseg(int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
+	lazy_segment(int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
 	: low(low), high(high), lop(lop), qop(qop), aop(aop), id(id){
 		lazy = id[0], val = id[1], lset = id[2];
 	}
-	ldseg(const vector<T> &arr, int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
+	lazy_segment(const vector<T> &arr, int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
 	: low(low), high(high), lop(lop), qop(qop), aop(aop), id(id){
 		lazy = id[0], lset = id[2];
 		if(high - low > 1){
 			int mid = low + (high - low) / 2;
-			l = new ldseg(arr, low, mid, lop, qop, aop, id);
-			r = new ldseg(arr, mid, high, lop, qop, aop, id);
+			l = new lazy_segment(arr, low, mid, lop, qop, aop, id);
+			r = new lazy_segment(arr, mid, high, lop, qop, aop, id);
 			val = qop(l->val, r->val);
 		}
 		else val = arr[low];
@@ -1298,8 +1283,8 @@ struct ldseg{
 	void push(){
 		if(!l){
 			int mid = low + (high - low) / 2;
-			l = new ldseg(low, mid, lop, qop, aop, id);
-			r = new ldseg(mid, high, lop, qop, aop, id);
+			l = new lazy_segment(low, mid, lop, qop, aop, id);
+			r = new lazy_segment(mid, high, lop, qop, aop, id);
 		}
 		if(lset != id[2]){
 			l->set(low, high, lset);
@@ -1344,39 +1329,33 @@ struct ldseg{
 		push();
 		return qop(l->query(ql, qr), r->query(ql, qr));
 	}
-	void print(){
-		cout << "range = [" << low << ", " << high << "), val = " << val << ", lazy = " << lazy << endl;
-		if(l) l->print(), r->print();
-	}
 };
 
 // 156485479_3_2_7
 // Persistent Segment Tree
 // O(N) preprocessing, O(log N) per query
-ll bin_op(ll x, ll y){
-	return x + y;
-}
-const ll id = 0;
 template<class T>
 struct node{
 	node *l = 0, *r = 0;
 	T val;
 	node(T val): val(val){}
-	node(node *l, node *r): l(l), r(r), val(id){
+	node(node *l, node *r, function<T(T, T)> bin_op, T id): l(l), r(r), val(id){
 		if(l) val = bin_op(l->val, val);
 		if(r) val = bin_op(val, r->val);
 	}
 };
-template<class T>
-struct persistent: vector<node<T> *>{
+template<class T, class BO>
+struct persistent_segment: vector<node<T> *>{
 	int N;
-	persistent(const vector<T> &arr): N(arr.size()){
+	BO bin_op;
+	const T id;
+	persistent_segment(const vector<T> &arr, BO bin_op, T id): N(arr.size()), bin_op(bin_op), id(id){
 		this->push_back(build(arr, 0, N));
 	}
 	node<T> *build(const vector<T> &arr, int left, int right){
 		if(left + 1 == right) return new node<T>(arr[left]);
 		int mid = left + right >> 1;
-		return new node<T>(build(arr, left, mid), build(arr, mid, right));
+		return new node<T>(build(arr, left, mid), build(arr, mid, right), bin_op, id);
 	}
 	T pq(node<T> *u, int left, int right, int ql, int qr){
 		if(qr <= left || right <= ql) return id;
@@ -1390,11 +1369,32 @@ struct persistent: vector<node<T> *>{
 	node<T> *ps(node<T> *u, int left, int right, int p, int val){
 		if(left + 1 == right) return new node<T>(val);
 		int mid = left + right >> 1;
-		if(mid > p) return new node<T>(ps(u->l, left, mid, p, val), u->r);
-		else return new node<T>(u->l, ps(u->r, mid, right, p, val));
+		if(mid > p) return new node<T>(ps(u->l, left, mid, p, val), u->r, bin_op, id);
+		else return new node<T>(u->l, ps(u->r, mid, right, p, val), bin_op, id);
 	}
 	void set(node<T> *u, int p, int val){
 		this->push_back(ps(u, 0, N, p, val));
+	}
+	// Below assumes T is an ordered field and node stores positive values
+	int plb(node<T> *u, int left, int right, T val){
+		if(left + 1 == right) return right;
+		int mid = left + right >> 1;
+		if(u->l->val < val) return plb(u->r, mid, right, val - u->l->val);
+		else return plb(u->l, left, mid, val);
+	}
+	int lower_bound(node<T> *u, T val){ // min i such that query[0, i) >= val
+		if(u->val < val) return N + 1;
+		return plb(u, 0, N, val);
+	}
+	int pub(node<T> *u, int left, int right, T val){
+		if(left + 1 == right) return right;
+		int mid = left + right >> 1;
+		if(u->l->val <= val) return pub(u->r, mid, right, val - u->l->val);
+		else return pub(u->l, left, mid, val);
+	}
+	int upper_bound(node<T> *u, T val){ // min i such that query[0, i) > val
+		if(u->val <= val) return N + 1;
+		return pub(u, 0, N, val);
 	}
 };
 
@@ -1740,6 +1740,131 @@ struct lichao{
 		else mc(1), c[1]->modify(X, M, R);
 	}
 };
+
+// 156485479_3_11
+// Distinct Value Query
+// O(N log N) preprocessing, O(log N) per query
+template<class T>
+struct node{
+	node *l = 0, *r = 0;
+	T val;
+	node(T val): val(val){}
+	node(node *l, node *r, function<T(T, T)> bin_op, T id): l(l), r(r), val(id){
+		if(l) val = bin_op(l->val, val);
+		if(r) val = bin_op(val, r->val);
+	}
+};
+template<class T, class BO>
+struct persistent_segment: vector<node<T> *>{
+	int N;
+	BO bin_op;
+	const T id;
+	persistent_segment(const vector<T> &arr, BO bin_op, T id): N(arr.size()), bin_op(bin_op), id(id){
+		this->push_back(build(arr, 0, N));
+	}
+	node<T> *build(const vector<T> &arr, int left, int right){
+		if(left + 1 == right) return new node<T>(arr[left]);
+		int mid = left + right >> 1;
+		return new node<T>(build(arr, left, mid), build(arr, mid, right), bin_op, id);
+	}
+	T pq(node<T> *u, int left, int right, int ql, int qr){
+		if(qr <= left || right <= ql) return id;
+		if(ql <= left && right <= qr) return u->val;
+		int mid = left + right >> 1;
+		return bin_op(pq(u->l, left, mid, ql, qr), pq(u->r, mid, right, ql, qr));
+	}
+	T query(node<T> *u, int ql, int qr){
+		return pq(u, 0, N, ql, qr);
+	}
+	node<T> *ps(node<T> *u, int left, int right, int p, int val){
+		if(left + 1 == right) return new node<T>(val);
+		int mid = left + right >> 1;
+		if(mid > p) return new node<T>(ps(u->l, left, mid, p, val), u->r, bin_op, id);
+		else return new node<T>(u->l, ps(u->r, mid, right, p, val), bin_op, id);
+	}
+	void set(node<T> *u, int p, int val){
+		this->push_back(ps(u, 0, N, p, val));
+	}
+	// Below assumes T is an ordered field and node stores positive values
+	int plb(node<T> *u, int left, int right, T val){
+		if(left + 1 == right) return right;
+		int mid = left + right >> 1;
+		if(u->l->val < val) return plb(u->r, mid, right, val - u->l->val);
+		else return plb(u->l, left, mid, val);
+	}
+	int lower_bound(node<T> *u, T val){ // min i such that query[0, i) >= val
+		if(u->val < val) return N + 1;
+		return plb(u, 0, N, val);
+	}
+	int pub(node<T> *u, int left, int right, T val){
+		if(left + 1 == right) return right;
+		int mid = left + right >> 1;
+		if(u->l->val <= val) return pub(u->r, mid, right, val - u->l->val);
+		else return pub(u->l, left, mid, val);
+	}
+	int upper_bound(node<T> *u, T val){ // min i such that query[0, i) > val
+		if(u->val <= val) return N + 1;
+		return pub(u, 0, N, val);
+	}
+};
+template<class T>
+struct distinct_value_query{
+	int N;
+	vector<node<T> *> p;
+	persistent_segment<int, plus<int>> tr;
+	distinct_value_query(const vector<T> &arr): N(sz(arr)), p(N), tr(vi(N), plus<int>{}, 0){
+		map<T, int> q;
+		vpii t(N);
+		for(int i = 0; i < N; ++ i){
+			t[i] = {(q.count(arr[i]) ? q[arr[i]] : -1), i};
+			q[arr[i]] = i;
+		}
+		sort(all(t), greater<pii>{});
+		tr.reserve(N);
+		for(int i = 0; i < N; ++ i){
+			while(!t.empty() && t.back().first < i){
+				tr.set(tr.back(), t.back().second, 1);
+				t.pop_back();
+			}
+			p[i] = tr.back();
+		}
+	}
+	int query(int l, int r){
+		return tr.query(p[l], l, r);
+	}
+	int lower_bound(int l, int k){ // min i such that # of distinct in [l, l + i) >= k
+		return tr.lower_bound(p[l], k + tr.query(p[l], 0, l));
+	}
+	int upper_bound(int l, int k){ // min i such that # of distinct in [l, l + i) > k
+		return tr.upper_bound(p[l], k + tr.query(p[l], 0, l));
+	}
+};
+
+// 156485479_3_12
+// Mo's Algorithm
+// O((N + Q) sqrt(N) F) where F is the processing time of ins and del.
+template<int B>
+struct Query{
+	int l, r, ind;
+	bool operator<(const Query &otr) const{
+		if(l / B != otr.l / B) return pii(l, r) < pii(otr.l, otr.r);
+		return (l / B & 1) ? (r < otr.r) : (r > otr.r);
+	}
+};
+template<class T, class Q, class I, class D, class A>
+vector<T> answer_query_offline(const vector<T> &arr, vector<Q> query, I ins, D del, A ans){
+	sort(all(query));
+	vector<T> res(sz(query));
+	for(auto q: query){
+		static int l = 0, r = 0;
+		while(l > q.l) ins(-- l);
+		while(r < q.r) ins(r ++);
+		while(l < q.l) del(l ++);
+		while(r > q.r) del(-- r);
+		res[q.ind] = ans();
+	}
+	return res;
+}
 
 // 156485479_4_1
 // Strongly Connected Component ( Tarjan's Algorithm )
@@ -2173,10 +2298,10 @@ template<class T, class BO1, class BO2, class BO3>
 struct ldseg{
 	ldseg *l = 0, *r = 0;
 	int low, high;
-	BO1 lop;		// Lazy op(L, L -> L)
-	BO2 qop;		// Query op(Q, Q -> Q)
-	BO3 aop;		// Apply op(Q, L, len -> Q)
-	vector<T> &id;	// Lazy id(L), Query id(Q), Disable constant(Q)
+	BO1 lop;			// Lazy op(L, L -> L)
+	BO2 qop;			// Query op(Q, Q -> Q)
+	BO3 aop;			// Apply op(Q, L, len -> Q)
+	vector<T> &id;		// Lazy id(L), Query id(Q), Disable constant(Q)
 	T lset, lazy, val;
 	ldseg(int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
 	: low(low), high(high), lop(lop), qop(qop), aop(aop), id(id){
@@ -2760,6 +2885,9 @@ struct point{
 	bool operator==(const point &other) const{
 		return x == other.x && y == other.y;
 	}
+	bool operator!=(const point &other) const{
+		return x != other.x || y != other.y;
+	}
 };
 istream &operator>>(istream &in, point &p){
 	cin >> p.x >> p.y;
@@ -2776,6 +2904,49 @@ ll ori(const point &p, const point &q, const point &r){
 // 156485479_6_2 ( CHANGE THIS TO KACTL ONE )
 // Convex Hull
 // O(n log n) construction, O(n) if sorted.
+struct point{
+	ll x, y;
+	point(pll p): x(p.first), y(p.second){}
+	point(ll x = 0, ll y = 0): x(x), y(y){}
+	bool operator<(const point &other) const{
+		return x < other.x || (x == other.x && y < other.y);
+	}
+	point operator+(const point &other) const{
+		return point(x + other.x, y + other.y);
+	}
+	point operator+=(const point &other){
+		return *this = *this + other;
+	}
+	point operator-(const point &other) const{
+		return point(x - other.x, y - other.y);
+	}
+	point operator-=(const point &other){
+		return *this = *this - other;
+	}
+	ll operator*(const point &other) const{
+		return x * other.x + y * other.y;
+	}
+	ll operator^(const point &other) const{
+		return x * other.y - y * other.x;
+	}
+	bool operator==(const point &other) const{
+		return x == other.x && y == other.y;
+	}
+	bool operator!=(const point &other) const{
+		return x != other.x || y != other.y;
+	}
+};
+istream &operator>>(istream &in, point &p){
+	cin >> p.x >> p.y;
+	return in;
+}
+ostream &operator<<(ostream &out, const point &p){
+	cout << "(" << p.x << ", " << p.y << ")";
+	return out;
+}
+ll ori(const point &p, const point &q, const point &r){
+	return (q - p) ^ (r - p);
+}
 struct convhull{
 	int N = 0, R = 0;
 	vector<point> ch;
@@ -2942,7 +3113,44 @@ struct custom_hash{
 		return x ^ (x >> 31);
 	}
 	size_t operator()(uint64_t x) const {
-		static const uint64_t FIXED_RANDOM = steady_clock::now().time_since_epoch().count();
+		static const uint64_t FIXED_RANDOM = chrono::steady_clock::now().time_since_epoch().count();
 		return splitmix64(x + FIXED_RANDOM);
 	}
 };
+// KACTL Hash Function
+# define M_PI 3.141592653589793238462643383279502884L
+const int RANDOM = rnd();
+struct custom_hash{ // To use most bits rather than just the lowest ones:
+	static const uint64_t C = ll(2e18 * M_PI) + 71; // large odd number
+	ll operator()(ll x) const { return __builtin_bswap64((x^RANDOM)*C); }
+};
+
+/*
+Speed test results
+set                                    1e6: 670ms | 1e7: 10155ms
+unordered_set                          1e6: 296ms | 1e7: 4320ms
+unordered_set with custom hash         1e6: 358ms | 1e7: 4851ms
+unordered_set with custom hash(narut)  1e6: 389ms | 1e7: 4850ms
+unordered_set with custom hash(pajen)  1e6: 436ms | 1e7: 5022ms
+
+map                                    1e6: 592ms | 1e7: 10420ms
+unordered_map                          1e6: 373ms | 1e7: 4742ms
+unordered_map with custom hash         1e6: 389ms | 1e7: 4913ms
+unordered_map with custom hash(narut)  1e6: 327ms | 1e7: 4960ms
+unordered_map with custom hash(pajen)  1e6: 389ms | 1e7: 4789ms
+
+map           | 1e6: 576ms 31560KB | 5e6: 4757ms 156552KB | 1e7: 10498ms 313280KB
+unodered_map  | 1e6: 327ms 32220KB | 5e6: 2121ms 147132KB | 1e7: 4835ms  295068KB
+cc_hash_table | 1e6: 249ms 31916KB | 5e6: 2011ms 197140KB | 1e7: 4383ms  394588KB
+gp_hash_table | 1e6: 109ms 36720KB | 5e6: 686ms  295516KB | 1e7: ????    MLE
+*/
+
+// 156485479_7_2
+// Bump Allocator
+static char BUFF[450 << 20];
+void *operator new(size_t s){
+	static size_t i = sizeof BUFF;
+	assert(s < i);
+	return (void *)&BUFF[i -= s];
+}
+void operator delete(void *){}
