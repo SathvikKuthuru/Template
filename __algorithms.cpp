@@ -2295,25 +2295,25 @@ struct binarylift: vector<vector<pair<int, T>>>{
 // Heavy Light Decomposition
 // O(N + M) preprocessing, O(log^2 N) per query
 template<class T, class BO1, class BO2, class BO3>
-struct ldseg{
-	ldseg *l = 0, *r = 0;
+struct lazy_segment{
+	lazy_segment *l = 0, *r = 0;
 	int low, high;
 	BO1 lop;			// Lazy op(L, L -> L)
 	BO2 qop;			// Query op(Q, Q -> Q)
 	BO3 aop;			// Apply op(Q, L, len -> Q)
 	vector<T> &id;		// Lazy id(L), Query id(Q), Disable constant(Q)
 	T lset, lazy, val;
-	ldseg(int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
+	lazy_segment(int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
 	: low(low), high(high), lop(lop), qop(qop), aop(aop), id(id){
 		lazy = id[0], val = id[1], lset = id[2];
 	}
-	ldseg(const vector<T> &arr, int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
+	lazy_segment(const vector<T> &arr, int low, int high, BO1 lop, BO2 qop, BO3 aop, vector<T> &id)
 	: low(low), high(high), lop(lop), qop(qop), aop(aop), id(id){
 		lazy = id[0], lset = id[2];
 		if(high - low > 1){
 			int mid = low + (high - low) / 2;
-			l = new ldseg(arr, low, mid, lop, qop, aop, id);
-			r = new ldseg(arr, mid, high, lop, qop, aop, id);
+			l = new lazy_segment(arr, low, mid, lop, qop, aop, id);
+			r = new lazy_segment(arr, mid, high, lop, qop, aop, id);
 			val = qop(l->val, r->val);
 		}
 		else val = arr[low];
@@ -2321,8 +2321,8 @@ struct ldseg{
 	void push(){
 		if(!l){
 			int mid = low + (high - low) / 2;
-			l = new ldseg(low, mid, lop, qop, aop, id);
-			r = new ldseg(mid, high, lop, qop, aop, id);
+			l = new lazy_segment(low, mid, lop, qop, aop, id);
+			r = new lazy_segment(mid, high, lop, qop, aop, id);
 		}
 		if(lset != id[2]){
 			l->set(low, high, lset);
