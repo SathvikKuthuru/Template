@@ -110,7 +110,7 @@ Category
 		156485479_3_9
 	3.10. Li Chao Tree
 		156485479_3_10
-	3.11. Distinct Value Query
+	3.11. Less-than-k Query / Distinct Value Query
 		156485479_3_11
 	3.12. Mo's Algorithm
 		156485479_3_12
@@ -158,10 +158,10 @@ Category
 
 
 6. Geometry
-	6.1. 2D Point Class
+	6.1. 2D Geometry
 		156485479_6_1
 	6.2. Convex Hull and Minkowski Addition
-		156485479_6_2 ( INCOMPLETE )
+		156485479_6_2
 
 
 7. Miscellaneous
@@ -1062,7 +1062,7 @@ struct sparse_table: vector<vector<T>>{
 		int d = 31 - __builtin_clz(r - l);
 		return bin_op((*this)[d][l], (*this)[d][r - (1 << d)]);
 	}
-	sparse_table operator=(const sparse_table &otr){
+	sparse_table &operator=(const sparse_table &otr){
 		N = otr.N, bin_op = otr.bin_op; this->clear();
 		for(auto &t: otr) this->push_back(t);
 		return *this;
@@ -1393,10 +1393,9 @@ struct fenwick: vector<T>{
 	BO bin_op;
 	IO inv_op;
 	T id;
-	fenwick(const vector<T> &arr, BO bin_op, IO inv_op, T id):
-		N(arr.size()), bin_op(bin_op), inv_op(inv_op), id(id){
+	fenwick(const vector<T> &arr, BO bin_op, IO inv_op, T id): N(arr.size()), bin_op(bin_op), inv_op(inv_op), id(id){
 		this->resize(N + 1, id);
-		for(int i = 0; i < N; i ++) update(i, arr[i]);
+		for(int i = 0; i < N; ++ i) update(i, arr[i]);
 	}
 	void update(int p, T val){
 		for(p ++; p <= N; p += p & -p) (*this)[p] = bin_op((*this)[p], val);
@@ -1719,8 +1718,65 @@ struct lichao{
 };
 
 // 156485479_3_11
-// Distinct Value Query
-// O(N log N) preprocessing, O(log N) per query
+// Less-than-k Query, Distinct Value Query (Offline, Online)
+// O(N log N) processing
+template<class T, class BO, class IO>
+struct fenwick: vector<T>{
+	int N;
+	BO bin_op;
+	IO inv_op;
+	T id;
+	fenwick(const vector<T> &arr, BO bin_op, IO inv_op, T id): N(arr.size()), bin_op(bin_op), inv_op(inv_op), id(id){
+		this->resize(N + 1, id);
+		for(int i = 0; i < N; ++ i) update(i, arr[i]);
+	}
+	void update(int p, T val){
+		for(p ++; p <= N; p += p & -p) (*this)[p] = bin_op((*this)[p], val);
+	}
+	T sum(int p){
+		T res = id;
+		for(p ++; p > 0; p -= p & -p) res = bin_op(res, (*this)[p]);
+		return res;
+	}
+	T query(int l, int r){
+		return inv_op(sum(r - 1), sum(l - 1));
+	}
+};
+template<class T>
+struct offline_less_than_k_query{
+	int N;
+	vector<pair<T, int>> event;
+	vector<tuple<T, int, int, int>> queries;
+	offline_less_than_k_query(const vector<T> &arr, bool IS_DVQ = true): N(sz(arr)), event(N){
+		if(IS_DVQ){
+			map<T, int> q;
+			for(int i = 0; i < N; ++ i){
+				event[i] = {(q.count(arr[i]) ? q[arr[i]] : -1), i};
+				q[arr[i]] = i;
+			}
+		}
+		else for(int i = 0; i < N; ++ i) event[i] = {arr[i], i};
+	}
+	void query(int i, int ql, int qr){ // For distinct value query
+		queries.emplace_back(ql, ql, qr, i);
+	}
+	void query(int i, int ql, int qr, T k){ // For less-than-k query
+		queries.emplace_back(k, ql, qr, i);
+	}
+	template<class Action>
+	void solve(Action ans){ // ans(index, answer)
+		sort(all(queries)), sort(all(event), greater<pair<T, int>>());
+		fenwick tr(vi(N), plus<int>(), minus<int>(), 0);
+		for(auto &[k, ql, qr, i]: queries){
+			while(!event.empty() && event.back().first < k){
+				tr.update(event.back().second, 1);
+				event.pop_back();
+			}
+			ans(i, tr.query(ql, qr));
+		}
+	}
+};
+
 template<class T>
 struct node{
 	node *l = 0, *r = 0;
@@ -1785,35 +1841,49 @@ struct persistent_segment: vector<node<T> *>{
 	}
 };
 template<class T>
-struct distinct_value_query{
+struct less_than_k_query{ // for less-than-k query, it only deals with numbers in range [0, N)
 	int N;
 	vector<node<T> *> p;
 	persistent_segment<int, plus<int>> tr;
-	distinct_value_query(const vector<T> &arr): N(sz(arr)), p(N), tr(vi(N), plus<int>{}, 0){
-		map<T, int> q;
-		vpii t(N);
-		for(int i = 0; i < N; ++ i){
-			t[i] = {(q.count(arr[i]) ? q[arr[i]] : -1), i};
-			q[arr[i]] = i;
+	less_than_k_query(const vector<T> &arr, bool IS_DVQ = true): N(sz(arr)), p(N + 1), tr(vi(N), plus<int>{}, 0){
+		vector<pair<T, int>> event(N);
+		if(IS_DVQ){
+			map<T, int> q;
+			for(int i = 0; i < N; ++ i){
+				event[i] = {(q.count(arr[i]) ? q[arr[i]] : -1), i};
+				q[arr[i]] = i;
+			}
 		}
-		sort(all(t), greater<pii>{});
+		else for(int i = 0; i < N; ++ i) event[i] = {arr[i], i};
+		sort(all(event), greater<pii>{});
 		tr.reserve(N);
-		for(int i = 0; i < N; ++ i){
-			while(!t.empty() && t.back().first < i){
-				tr.set(tr.back(), t.back().second, 1);
-				t.pop_back();
+		for(int i = 0; i <= N; ++ i){
+			while(!event.empty() && event.back().first < i){
+				tr.set(tr.back(), event.back().second, 1);
+				event.pop_back();
 			}
 			p[i] = tr.back();
 		}
 	}
-	int query(int l, int r){
-		return tr.query(p[l], l, r);
+	// For distinct value query
+	int query(int ql, int qr){
+		return tr.query(p[ql], ql, qr);
 	}
-	int lower_bound(int l, int k){ // min i such that # of distinct in [l, l + i) >= k
-		return tr.lower_bound(p[l], k + tr.query(p[l], 0, l));
+	int lower_bound(int ql, int cnt){ // min i such that # of distinct in [l, l + i) >= cnt
+		return tr.lower_bound(p[ql], cnt + tr.query(p[ql], 0, ql));
 	}
-	int upper_bound(int l, int k){ // min i such that # of distinct in [l, l + i) > k
-		return tr.upper_bound(p[l], k + tr.query(p[l], 0, l));
+	int upper_bound(int ql, int cnt){ // min i such that # of distinct in [l, l + i) > cnt
+		return tr.upper_bound(p[ql], cnt + tr.query(p[ql], 0, ql));
+	}
+	// For less-than-k query
+	int query(int ql, int qr, int k){
+		return tr.query(p[k], ql, qr);
+	}
+	int lower_bound(int ql, int k, int cnt){ // min i such that ( # of elements < k in [l, l + i) ) >= cnt
+		return tr.lower_bound(p[k], cnt + tr.query(p[k], 0, ql));
+	}
+	int upper_bound(int ql, int k, int cnt){ // min i such that ( # of elements < k in [l, l + i) ) > cnt
+		return tr.upper_bound(p[k], cnt + tr.query(p[k], 0, ql));
 	}
 };
 
@@ -2111,7 +2181,7 @@ struct sparse_table: vector<vector<T>>{
 		int d = 31 - __builtin_clz(r - l);
 		return bin_op((*this)[d][l], (*this)[d][r - (1 << d)]);
 	}
-	sparse_table operator=(const sparse_table &otr){
+	sparse_table &operator=(const sparse_table &otr){
 		N = otr.N, bin_op = otr.bin_op; this->clear();
 		for(auto &t: otr) this->push_back(t);
 		return *this;
@@ -2658,7 +2728,7 @@ struct sparse_table: vector<vector<T>>{
 		int d = 31 - __builtin_clz(r - l);
 		return bin_op((*this)[d][l], (*this)[d][r - (1 << d)]);
 	}
-	sparse_table operator=(const sparse_table &otr){
+	sparse_table &operator=(const sparse_table &otr){
 		N = otr.N, bin_op = otr.bin_op; this->clear();
 		for(auto &t: otr) this->push_back(t);
 		return *this;
@@ -2918,111 +2988,238 @@ struct double_polyhash{
 };
 
 // 156485479_6_1
-// 2D Point Class
-template<class T = ll>
-struct point{
+// 2D Geometry Classes
+template<class T = ll> struct point{
 	T x, y;
-	point(pair<T, T> p): x(p.first), y(p.second){ }
-	point(T x = 0, T y = 0): x(x), y(y){ }
+	// Modify this along with member variables
+	point &operator=(const point &otr) { x = otr.x, y = otr.y; return *this; }
+	template<class U> point(const point<U> &otr): x(otr.x), y(otr.y){ }
+	template<class U, class V> point(const pair<U, V> &p): x(p.first), y(p.second){ }
+	template<class U = T, class V = T> point(U x = 0, V y = 0): x(x), y(y){ }
+	template<class U> explicit operator point<U>() const{ return point<U>(static_cast<U>(x), static_cast<U>(y)); }
 	T operator*(const point &otr) const{ return x * otr.x + y * otr.y; }
 	T operator^(const point &otr) const{ return x * otr.y - y * otr.x; }
 	point operator+(const point &otr) const{ return point(x + otr.x, y + otr.y); }
-	point operator+=(const point &otr){ return *this = *this + otr; }
+	point &operator+=(const point &otr){ return *this = *this + otr; }
 	point operator-(const point &otr) const{ return point(x - otr.x, y - otr.y); }
-	point operator-=(const point &otr){ return *this = *this - otr; }
+	point &operator-=(const point &otr){ return *this = *this - otr; }
 	point operator*(const T &c) const{ return point(x * c, y * c); }
-	point operator*=(const T &c) { return *this = *this * c; }
+	point &operator*=(const T &c) { return *this = *this * c; }
 	point operator/(const T &c) const{ return point(x / c, y / c); }
-	point operator/=(const T &c) { return *this = *this / c; }
+	point &operator/=(const T &c) { return *this = *this / c; }
 	point operator-() const{ return point(-x, -y); }
 	bool operator<(const point &otr) const{ return tie(x, y) < tie(otr.x, otr.y); }
+	bool operator>(const point &otr) const{ return tie(x, y) > tie(otr.x, otr.y); }
+	bool operator<=(const point &otr) const{ return tie(x, y) <= tie(otr.x, otr.y); }
+	bool operator>=(const point &otr) const{ return tie(x, y) >= tie(otr.x, otr.y); }
 	bool operator==(const point &otr) const{ return tie(x, y) == tie(otr.x, otr.y); }
 	bool operator!=(const point &otr) const{ return tie(x, y) != tie(otr.x, otr.y); }
-	double size() const{ return sqrt(x * x + y * y); }
-	T sqsize() const{ return x * x + y * y; }
-	double angle() const{ return atan2(y, x); } // [-pi, pi]
-	point unit() const{ return *this / size(); }
+	double norm() const{ return sqrt(x * x + y * y); }
+	T sqnorm() const{ return x * x + y * y; }
+	double arg() const{ return atan2(y, x); } // [-pi, pi]
+	point<double> unit() const{ return point<double>(x, y) / norm(); }
 	point perp() const{ return point(-y, x); }
-	point normal() const{ return perp().unt(); }
-	point rotate(const double &theta) const{ return point(x * cos(theta) - y * sin(theta), x * sin(theta) + y * cos(theta)); }
-	point ref_x() const{ return point(x, -y); }
-	point ref_y() const{ return point(-x, y); }
+	point<double> normal() const{ return perp().unit(); }
+	point<double> rotate(const double &theta) const{ return point<double>(x * cos(theta) - y * sin(theta), x * sin(theta) + y * cos(theta)); }
+	point reflect_x() const{ return point(x, -y); }
+	point reflect_y() const{ return point(-x, y); }
 };
+template<class T> point<T> operator*(const T &c, const point<T> &p){ return point<T>(c * p.x, c * p.y); }
+template<class T> istream &operator>>(istream &in, point<T> &p){ return in >> p.x >> p.y; }
+template<class T> ostream &operator<<(ostream &out, const point<T> &p){ return out << pair<T, T>(p.x, p.y); }
+template<class T> double distance(const point<T> &p, const point<T> &q){ return (p - q).norm(); }
+template<class T> T squared_distance(const point<T> &p, const point<T> &q){ return (p - q).sqnorm(); }
+template<class T, class U, class V> T ori(const point<T> &p, const point<U> &q, const point<V> &r){ return (q - p) ^ (r - p); }
+template<class T> T doubled_signed_area(const vector<T> &arr){
+	T s = arr.back() ^ arr.front();
+	for(int i = 1; i < sz(arr); ++ i) s += arr[i - 1] ^ arr[i];
+	return s;
+}
+template<class T = ll> struct line{
+	point<T> p, d; // p + d*t
+	template<class U = T, class V = T> line(point<U> p = {0, 0}, point<V> q = {0, 0}, bool Two_Points = true): p(p), d(Two_Points ? q - p : q){ }
+	template<class U> line(point<U> d): p(), d(static_cast<point<T>>(d)){ }
+	line(T a, T b, T c): p(a ? -c / a : 0, !a && b ? -c / b : 0), d(-b, a){ }
+	template<class U> explicit operator line<U>() const{ return line<U>(point<U>(p), point<U>(d), false); }
+	line &operator=(const line &otr){ p = otr.p, d = otr.d; return *this; }
+	point<T> q() const{ return p + d; }
+	bool degen() const{ return d == point<T>(); }
+	tuple<T, T, T> coef(){ return {d.y, -d.x, d.perp() * p}; } // d.y (X - p.x) - d.x (Y - p.y) = 0
+};
+template<class T> bool parallel(const line<T> &L, const line<T> &M){ return !(L.d ^ M.d); }
+template<class T> bool on_line(const point<T> &p, const line<T> &L){
+	if(L.degen()) return p == L.p;
+	return (p - L.p) ^ L.d == 0;
+}
+template<class T> bool on_ray(const point<T> &p, const line<T> &L){
+	if(L.degen()) return p == L.p;
+	auto a = L.p - p, b = L.q() - p;
+	return !(a ^ b) && a * L.d <= 0;
+}
+template<class T> bool on_segment(const point<T> &p, const line<T> &L){
+	if(L.degen()) return p == L.p;
+	auto a = L.p - p, b = L.q() - p;
+	return !(a ^ b) && a * b <= 0;
+}
+template<class T> double distance_to_line(const point<T> &p, const line<T> &L){
+	if(L.degen()) return distance(p, L.p);
+	return abs((p - L.p) ^ L.d) / L.d.norm();
+}
+template<class T> double distance_to_ray(const point<T> &p, const line<T> &L){
+	if((p - L.p) * L.d <= 0) return distance(p, L.p);
+	return distance_to_line(p, L);
+}
+template<class T> double distance_to_segment(const point<T> &p, const line<T> &L){
+	if((p - L.p) * L.d <= 0) return distance(p, L.p);
+	if((p - L.q()) * L.d >= 0) return distance(p, L.q());
+	return distance_to_line(p, L);
+}
+template<class T> point<double> projection(const point<T> &p, const line<T> &L){ return static_cast<point<double>>(L.p) + (L.degen() ? point<double>() : (p - L.p) * L.d / L.d.norm() * static_cast<point<double>>(L.d)); }
+template<class T> point<double> reflection(const point<T> &p, const line<T> &L){ return 2.0 * projection(p, L) - static_cast<point<double>>(p); }
+template<class T> point<double> closest_point_on_segment(const point<T> &p, const line<T> &L){ return (p - L.p) * L.d <= 0 ? static_cast<point<double>>(L.p) : ((p - L.q()) * L.d >= 0 ? static_cast<point<double>>(L.q()) : projection(p, L)); }
+template<int TYPE> struct EndpointChecker{ };
+// For rays
+template<> struct EndpointChecker<0>{ template<class T> bool operator()(const T& a, const T& b) const{ return true; } }; // For ray
+// For closed end
+template<> struct EndpointChecker<1>{ template<class T> bool operator()(const T& a, const T& b) const{ return a <= b; } }; // For closed end
+// For open end
+template<> struct EndpointChecker<2>{ template<class T> bool operator()(const T& a, const T& b) const{ return a < b; } }; // For open end
+// Assumes parallel lines do not intersect
+template<int LA, int LB, int RA, int RB, class T> pair<bool, point<double>> intersect_no_parallel_overlap(const line<T> &L, const line<T> &M){
+	auto s = L.d ^ M.d;
+	if(!s) return {false, point<double>()};
+	auto ls = (M.p - L.p) ^ M.d, rs = (M.p - L.p) ^ L.d;
+	if(s < 0) s = -s, ls = -ls, rs = -rs;
+	bool intersect = EndpointChecker<LA>()(decltype(ls)(0), ls) && EndpointChecker<LB>()(ls, s) && EndpointChecker<RA>()(decltype(rs)(0), rs) && EndpointChecker<RB>()(rs, s);
+	return {intersect, static_cast<point<double>>(L.p) + 1.0 * ls / s * static_cast<point<double>>(L.d)};
+}
+// Assumes parallel lines do not intersect
+template<class T> pair<bool, point<double>> intersect_closed_segments_no_parallel_overlap(const line<T> &L, const line<T> &M) {
+	return intersect_no_parallel_overlap<1, 1, 1, 1>(L, M);
+}
+// Assumes nothing
+template<class T> pair<bool, line<double>> intersect_closed_segments(const line<T> &L, const line<T> &M){
+	auto s = L.d ^ M.d, ls = (M.p - L.p) ^ M.d;
+	if(!s){
+		if(ls) return {false, line<double>()};
+		auto Lp = L.p, Lq = L.q(), Mp = M.p, Mq = M.q();
+		if(Lp > Lq) swap(Lp, Lq);
+		if(Mp > Mq) swap(Mp, Mq);
+		line<double> res(max(Lp, Mp), min(Lq, Mq));
+		return {res.d >= point<double>(), res};
+	}
+	auto rs = (M.p - L.p) ^ L.d;
+	if(s < 0) s = -s, ls = -ls, rs = -rs;
+	bool intersect = 0 <= ls && ls <= s && 0 <= rs && rs <= s;
+	return {intersect, line<double>(static_cast<point<double>>(L.p) + 1.0 * ls / s * static_cast<point<double>>(L.d), point<double>())};
+}
+template<class T> double distance_between_rays(const line<T> &L, const line<T> &M){
+	if(parallel(L, M)){
+		if(L.d * M.d >= 0 || (M.p - L.p) * M.d <= 0) return distance_to_line(L.p, M);
+		else return distance(L.p, M.p);
+	}
+	else{
+		if(intersect_no_parallel_overlap<1, 0, 1, 0, ll>(L, M).first) return 0;
+		else return min(distance_to_ray(L.p, M), distance_to_ray(M.p, L));
+	}
+}
+template<class T> double distance_between_segments(const line<T> &L, const line<T> &M){
+	if(intersect_closed_segments(L, M).first) return 0;
+	return min({distance_to_segment(L.p, M), distance_to_segment(L.q(), M), distance_to_segment(M.p, L), distance_to_segment(M.q(), L)});
+}
+template<class P> struct compare_by_angle{
+	const P origin;
+	compare_by_angle(const P &origin = P()): origin(origin){ }
+	bool operator()(const P &p, const P &q) const{ return ori(origin, p, q) < 0; }
+};
+template<class It, class P> void sort_by_angle(It first, It last, const P &origin){
+	first = partition(first, last, [&origin](const decltype(*first) &point){ return point == origin; });
+	auto pivot = partition(first, last, [&origin](const decltype(*first) &point) { return point > origin; });
+	compare_by_angle<P> cmp(origin);
+	sort(first, pivot, cmp), sort(pivot, last, cmp);
+}
 
-// 156485479_6_2 ( CHANGE THIS TO KACTL ONE )
-// Convex Hull
+// 156485479_6_2
+// Convex Hull and Minkowski Sum
 // O(n log n) construction, O(n) if sorted.
-template<class T = ll>
-struct point{
-	T x, y;
-	point(pair<T, T> p): x(p.first), y(p.second){ }
-	point(T x = 0, T y = 0): x(x), y(y){ }
-	T operator*(const point &otr) const{ return x * otr.x + y * otr.y; }
-	T operator^(const point &otr) const{ return x * otr.y - y * otr.x; }
-	point operator+(const point &otr) const{ return point(x + otr.x, y + otr.y); }
-	point operator+=(const point &otr){ return *this = *this + otr; }
-	point operator-(const point &otr) const{ return point(x - otr.x, y - otr.y); }
-	point operator-=(const point &otr){ return *this = *this - otr; }
-	point operator*(const T &c) const{ return point(x * c, y * c); }
-	point operator*=(const T &c) { return *this = *this * c; }
-	point operator/(const T &c) const{ return point(x / c, y / c); }
-	point operator/=(const T &c) { return *this = *this / c; }
-	point operator-() const{ return point(-x, -y); }
-	bool operator<(const point &otr) const{ return tie(x, y) < tie(otr.x, otr.y); }
-	bool operator==(const point &otr) const{ return tie(x, y) == tie(otr.x, otr.y); }
-	bool operator!=(const point &otr) const{ return tie(x, y) != tie(otr.x, otr.y); }
-	double size() const{ return sqrt(x * x + y * y); }
-	T sqsize() const{ return x * x + y * y; }
-	double angle() const{ return atan2(y, x); } // [-pi, pi]
-	point unit() const{ return *this / size(); }
-	point perp() const{ return point(-y, x); }
-	point normal() const{ return perp().unt(); }
-	point rotate(const double &theta) const{ return point(x * cos(theta) - y * sin(theta), x * sin(theta) + y * cos(theta)); }
-	point ref_x() const{ return point(x, -y); }
-	point ref_y() const{ return point(-x, y); }
-};
-template<class T>
-istream &operator>>(istream &in, point<T> &p){
-	return in >> p.x >> p.y;
-}
-template<class T>
-ostream &operator<<(ostream &out, const point<T> &p){
-	return out << "(" << p.x << ", " << p.y << ")";
-}
-template<class T>
-T ori(const point<T> &p, const point<T> &q, const point<T> &r){
-	return (q - p) ^ (r - p);
-}
 template<class Polygon>
 struct convex_hull: pair<Polygon, Polygon>{ // (Lower, Upper) type {0: both, 1: lower, 2: upper}
 	int type;
-	bool tiebreak;
-	convex_hull(Polygon arr, int type = 0, bool tiebreak = true, bool is_sorted = false): type(type), tiebreak(tiebreak){
-		if(!is_sorted) sort(all(arr));
-		if(tiebreak) arr.resize(unique(all(arr)) - arr.begin());
+	convex_hull(Polygon arr = Polygon(), int type = 0, bool is_sorted = false): type(type){
+		if(!is_sorted) sort(all(arr)), arr.resize(unique(all(arr)) - arr.begin());
 #define ADDP(C, cmp) while(sz(C) > 1 && ori(C[sz(C) - 2], p, C.back()) cmp 0) C.pop_back(); C.push_back(p);
 		for(auto &p: arr){
-			if(tiebreak){
-				if(type < 2){ ADDP(this->first, >=) }
-				if(!(type & 1)){ ADDP(this->second, <=) }
-			}
-			else{
-				if(type < 2){ ADDP(this->first, >) }
-				if(!(type & 1)){ ADDP(this->second, <) }
-			}
+			if(type < 2){ ADDP(this->first, >=) }
+			if(!(type & 1)){ ADDP(this->second, <=) }
 		}
 		reverse(all(this->second));
 	}
-	Polygon get_hull(){
+	Polygon get_hull() const{
+		if(type) return type == 1 ? this->first : this->second;
 		if(sz(this->first) <= 1) return this->first;
 		Polygon res(this->first);
 		res.insert(res.end(), ++ this->second.begin(), -- this->second.end());
 		return res;
 	}
-	Polygon linearize(){
+	int min_element(const class Polygon::value_type &p) const{
+		assert(p.y >= 0 && !this->first.empty());
+		int low = 0, high = sz(this->first);
+		while(high - low > 2){
+			int mid1 = (2 * low + high) / 3, mid2 = (low + 2 * high) / 3;
+			p * this->first[mid1] >= p * this->first[mid2] ? low = mid1 : high = mid2;
+		}
+		int res = low;
+		for(int i = low + 1; i < high; i ++) if(p * this->first[res] > p * this->first[i]) res = i;
+		return res;
+	}
+	int max_element(const class Polygon::value_type &p) const{
+		assert(p.y >= 0 && !this->second.empty());
+		int low = 0, high = sz(this->second);
+		while(high - low > 2){
+			int mid1 = (2 * low + high) / 3, mid2 = (low + 2 * high) / 3;
+			p * this->second[mid1] <= p * this->second[mid2] ? low = mid1 : high = mid2;
+		}
+		int res = low;
+		for(int i = low + 1; i < high; ++ i) if(p * this->second[res] < p * this->second[i]) res = i;
+		return res;
+	}
+	Polygon linearize() const{
+		if(type == 1) return this->first;
+		if(type == 2){ Polygon res(this->second); reverse(all(res)); return res; }
 		if(sz(this->first) <= 1) return this->first;
 		Polygon res;
+		res.reserve(sz(this->first) + sz(this->second));
 		merge(all(this->first), ++ this->second.rbegin(), -- this->second.rend(), back_inserter(res));
+		return res;
+	}
+	convex_hull operator^(const convex_hull &otr) const{
+		Polygon temp, A = linearize(), B = otr.linearize();
+		temp.reserve(sz(A) + sz(B));
+		merge(all(A), all(B), back_inserter(temp));
+		temp.resize(unique(all(temp)) - temp.begin());
+		return {temp, type, true};
+	}
+	pair<Polygon, Polygon> get_boundary() const{
+		Polygon L(this->first), R(this->second);
+		for(int i = sz(L) - 1; i > 0; -- i) L[i] -= L[i - 1];
+		for(int i = sz(R) - 1; i > 0; -- i) R[i] -= R[i - 1];
+		return {L, R};
+	}
+	convex_hull operator+(const convex_hull &otr) const{
+		assert(type == otr.type);
+		convex_hull res(Polygon(), type);
+		pair<Polygon, Polygon> A(this->get_boundary()), B(otr.get_boundary());
+		compare_by_angle<class Polygon::value_type> cmp;
+#define PROCESS(COND, X) \
+if(COND && !A.X.empty() && !B.X.empty()){ \
+	res.X.reserve(sz(A.X) + sz(B.X)); \
+	res.X.push_back(A.X.front() + B.X.front()); \
+	cout.flush(); \
+	merge(A.X.begin() + 1, A.X.end(), B.X.begin() + 1, B.X.end(), back_inserter(res.X), cmp); \
+	for(int i = 1; i < sz(res.X); ++ i) res.X[i] += res.X[i - 1]; \
+}
+		PROCESS(type < 2, first)
+		PROCESS(!(type & 1), second)
 		return res;
 	}
 };
