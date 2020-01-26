@@ -3258,7 +3258,6 @@ struct convex_hull: pair<Polygon, Polygon>{ // (Lower, Upper) type {0: both, 1: 
 if(COND && !A.X.empty() && !B.X.empty()){ \
 	res.X.reserve(sz(A.X) + sz(B.X)); \
 	res.X.push_back(A.X.front() + B.X.front()); \
-	cout.flush(); \
 	merge(A.X.begin() + 1, A.X.end(), B.X.begin() + 1, B.X.end(), back_inserter(res.X), cmp); \
 	for(int i = 1; i < sz(res.X); ++ i) res.X[i] += res.X[i - 1]; \
 }
