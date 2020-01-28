@@ -66,10 +66,17 @@ Category
 	2.5. Kadane
 		156485479_2_5
 	2.6. DP Optimization
-		2.6.1. Divide and Conquer
-			156485479_2_6_1
-		2.6.2. Knuth
+		2.6.1. Convex Hull Trick (Line Containers / Li Chao Tree)
+			2.6.1.1. Sorted Line Container
+				156485479_2_6_1_1
+			2.6.1.2. Line Container
+				156485479_2_6_1_2
+			2.6.1.3. Li Chao Tree
+				156485479_2_6_1_3
+		2.6.2. Divide and Conquer
 			156485479_2_6_2
+		2.6.3. Knuth
+			156485479_2_6_3
 	2.7. Binary Search
 		156485479_2_7
 
@@ -105,17 +112,13 @@ Category
 		156485479_3_5
 	3.6. Monotone Stack
 		156485479_3_6
-	3.7. Line Container
-		156485479_3_7
-	3.8. Persistent Array
+	3.7. Persistent Array
 		156485479_3_8
-	3.9. Persistent Disjoint Set
+	3.8. Persistent Disjoint Set
 		156485479_3_9
-	3.10. Li Chao Tree
-		156485479_3_10
-	3.11. Less-than-k Query / Distinct Value Query
+	3.9. Less-than-k Query / Distinct Value Query
 		156485479_3_11
-	3.12. Mo's Algorithm
+	3.10. Mo's Algorithm
 		156485479_3_12
 
 4. Graph
@@ -176,19 +179,40 @@ Category
 *******************************************************************************/
 
 // 156485479_1_1
-// Modular Exponentiation and Modular Inverse
+// Modular Exponentiation, Modular Inverse and Geometric Sum
 // O(log e)
 ll modexp(ll b, ll e, const ll &mod){
 	ll res = 1;
-	for(; e; b = b * b % mod, e /= 2){
-		if(e & 1){
-			res = res * b % mod;
-		}
-	}
+	for(; e; b = b * b % mod, e >>= 1) if(e & 1) res = res * b % mod;
 	return res;
 }
 ll modinv(ll b, const ll &mod){
 	return modexp(b, mod - 2, mod);
+}
+ll modgeo(ll b, ll e, const ll &mod){
+	if(e < 2) return e;
+	ll res = 1;
+	for(ll bit = 1 << 30 - __builtin_clz(e), p = 1; bit; bit >>= 1){ // 0->1->2
+		res = res * (1 + p * b % mod) % mod, p = p * p % mod * b % mod;
+		if(bit & e) res = (res + (p = p * b % mod)) % mod;
+	}
+	return res;
+}
+template<class T>
+T binexp(T b, ll e, const T &id){
+	T res = id;
+	for(; e; b = b * b, e /= 2) if(e & 1) res = res * b;
+	return res;
+}
+template<class T>
+T bingeo(const T &b, ll e, const T &add_id, const T &mul_id){
+	if(e < 2) return e ? mul_id : add_id;
+	T res = mul_id, p = mul_id;
+	for(ll bit = 1 << 30 - __builtin_clz(e); bit; bit >>= 1){
+		res = res * (mul_id + p * b), p = p * p * b;
+		if(bit & e) res = (res + (p = p * b));
+	}
+	return res;
 }
 
 // 156485479_1_2
@@ -1003,7 +1027,137 @@ T kadane(const vector<T> &arr){
 	return gm;
 }
 
-// 156485479_2_6_1
+// 156485479_2_6_1_1
+// Sorted Line Container
+// O(log N) per query, amortized O(1) for everything else
+struct line{
+	ll d, k, p;
+	ll eval(ll x){ return d * x + k; }
+};
+template<bool GET_MAX = true>
+struct sorted_line_container: deque<line>{
+	// (for doubles, use inf = 1/.0, div(a,b) = a/b)
+	const ll inf = LLONG_MAX;
+	ll div(ll a, ll b){ return a / b - ((a ^ b) < 0 && a % b); }
+	bool isect_front(iterator x, iterator y){
+		if(y == this->end()){ x->p = inf; return false; }
+		else{ x->p = div(y->k - x->k, x->d - y->d); return x->p >= y->p; }
+	}
+	bool isect_back(reverse_iterator x, reverse_iterator y){
+		if(x == this->rend()) return false;
+		else{ x->p = div(y->k - x->k, x->d - y->d); return x->p >= y->p; }
+	}
+	void push(ll d, ll k){
+		if(!GET_MAX) d = -d, k = -k;
+		if(empty() || d < front().d){
+			push_front({d, k, 0}), isect_front(begin(), ++ begin());
+			while(size() >= 2 && isect_front(begin(), ++ begin())) erase(++ begin());
+		}
+		else if(d > back().d){
+			push_back({d, k, inf}); isect_back(++ rbegin(), rbegin());
+			while(size() >= 2 && isect_back(++ ++ rbegin(), ++ rbegin())) erase(-- -- end()), isect_back(++ rbegin(), rbegin());
+		}
+		else assert(false);
+	}
+	ll dec_query(ll x){
+		while(size() >= 2 && rbegin()->eval(x) <= (++ rbegin())->eval(x)) pop_back(); rbegin()->p = inf;
+		return rbegin()->eval(x) * (GET_MAX ? 1 : -1);
+	}
+	ll inc_query(ll x){
+		while(size() >= 2 && begin()->eval(x) <= (++ begin())->eval(x)) pop_front();
+		return begin()->eval(x) * (GET_MAX ? 1 : -1);
+	}
+	ll query(ll x){
+		if(size() == 1) return begin()->eval(x) * (GET_MAX ? 1 : -1);
+		int low = 0, high = int(size()) - 1;
+		if(begin()->eval(x) >= (++ begin())->eval(x)) return begin()->eval(x) * (GET_MAX ? 1 : -1);
+		while(high - low > 1){
+			int mid = low + high >> 1;
+			(*this)[mid].eval(x) < (*this)[mid + 1].eval(x) ? low = mid : high = mid;
+		}
+		return (*this)[low + 1].eval(x) * (GET_MAX ? 1 : -1);
+	}
+};
+
+// 156485479_2_6_1_2
+// Line Container / Add lines of form d*x + k and query max at pos x
+// O(log N) per query
+struct line{
+	mutable ll d, k, p;
+	bool operator<(const line &otr) const{ return d < otr.d; }
+	bool operator<(ll x) const{ return p < x;}
+};
+template<bool GET_MAX = true>
+struct line_container: multiset<line, less<>>{
+	// (for doubles, use inf = 1/.0, div(a,b) = a/b)
+	const ll inf = LLONG_MAX;
+	ll div(ll a, ll b){ return a / b - ((a ^ b) < 0 && a % b); }
+	bool isect(iterator x, iterator y){
+		if(y == this->end()){ x->p = inf; return false; }
+		if(x->d == y->d) x->p = x->k > y->k ? inf : -inf;
+		else x->p = div(y->k - x->k, x->d - y->d);
+		return x->p >= y->p;
+	}
+	void push(ll d, ll k){
+		if(!GET_MAX) d = -d, k = -k;
+		auto z = this->insert({d, k, 0}), y = z ++, x = y;
+		while(isect(y, z)) z = this->erase(z);
+		if(x != this->begin() && isect(-- x, y)) isect(x, y = this->erase(y));
+		while((y = x) != this->begin() && (-- x)->p >= y->p) isect(x, this->erase(y));
+	}
+	ll query(ll x){
+		assert(!this->empty());
+		auto l = *this->lower_bound(x);
+		return (l.d * x + l.k) * (GET_MAX ? 1 : -1);
+	}
+};
+
+// 156485479_2_6_1_3
+// Li Chao Tree
+// O(log N) per update and query
+struct line{
+	ll d, k;
+	line(ll d = 0, ll k = -(ll)9e18): d(d), k(k){ }
+	ll eval(ll x){ return d * x + k; }
+	bool majorize(line X, ll L, ll R){ return eval(L) >= X.eval(L) && eval(R) >= X.eval(R); }
+};
+template<bool GET_MAX = true>
+struct lichao{
+	lichao *l = NULL, *r = NULL;
+	line S;
+	lichao(): S(line()){ }
+	void rm(){
+		if(l) l->rm();
+		if(r) r->rm();
+		delete this;
+	}
+	void mc(int i){
+		if(i){ if(!r) r = new lichao(); }
+		else{ if(!l) l = new lichao(); }
+	}
+	ll pq(ll X, ll L, ll R){
+		ll ans = S.eval(X), M = L + R >> 1;
+		if(X < M) return max(ans, l ? l->pq(X, L, M) : -(ll)9e18);
+		else return max(ans, r ? r->pq(X, M, R) : -(ll)9e18);
+	}
+	ll query(ll X, ll L, ll high){
+		return pq(X, L, high) * (GET_MAX ? 1 : -1);
+	}
+	void pi(line X, ll L, ll R){
+		if(X.majorize(S, L, R)) swap(X, S);
+		if(S.majorize(X, L, R)) return;
+		if(S.eval(L) < X.eval(L)) swap(X, S);
+		ll M = L + R >> 1;
+		if(X.eval(M) > S.eval(M)) swap(X, S), mc(0), l->pi(X, L, M);
+		else mc(1), r->pi(X, M, R);
+	}
+	void insert(line X, ll L, ll high){
+		if(!GET_MAX) X.d = -X.d, X.k = -X.k;
+		pi(X, L, high);
+	}
+};
+
+// 156485479_2_6_2
 // Divide and Conquer DP Optimization
 // Recurrence relation of form: dp_next[i] = min{j in [0, i)} (dp[j] + C[j][i])
 // Must satisfy opt[j] <= opt[j + 1]
@@ -1020,7 +1174,7 @@ void DCDP(vector<T> &dp, vector<T> &dp_next, const vector<vector<T>> &C, int low
 	DCDP(dp, dp_next, C, mid + 1, high, res.second, optr);
 }
 
-// 156485479_2_6_2
+// 156485479_2_6_3
 // Knuth DP optimization
 // Recurrence relation of form: dp[i][j] = min{k in [i, j)} (dp[i][k] + dp[k][j] + C[i][j])
 // C must satisfy C[a][c] + C[b][d] <= C[a][d] + C[b][d] (C is a monge array) and C[a][d] >= C[b][c] for all a<=b<=c<=d
@@ -1029,7 +1183,7 @@ void DCDP(vector<T> &dp, vector<T> &dp_next, const vector<vector<T>> &C, int low
 
 // 156485479_2_7
 // Binary Search
-// O(log(high - low))
+// O(log(high - low)) applications of p
 template<class Pred>
 ll custom_binary_search(ll low, ll high, Pred p, bool is_left = true){
 	assert(low < high);
@@ -1580,57 +1734,20 @@ struct disjoint: vi{
 
 // 156485479_3_6
 // Monotone Stack
-// O(1) per query
+// O(1) per operation
 template<class T = int, class Compare = function<bool(T, T)>>
 struct monotone_stack: vector<T>{
 	T init;
 	Compare cmp;
-	monotone_stack(T init = 0, Compare cmp = less<T>{}): init(init), cmp(cmp){}
+	monotone_stack(T init = 0, Compare cmp = less<T>{}): init(init), cmp(cmp){ }
 	T push(T x){
-		while(!this->empty() && !cmp(this->back(), x)){
-			this->pop_back();
-		}
+		while(!this->empty() && !cmp(this->back(), x)) this->pop_back();
 		this->push_back(x);
 		return this->size() == 1 ? init : *-- -- this->end();
 	}
 };
 
 // 156485479_3_7
-// Line Container / Add lines of form kX + m and query max at pos x
-// O(log N) per query
-struct line{
-	mutable ll d, k, p;
-	bool operator<(const line &otr) const{ return d < otr.d; }
-	bool operator<(ll x) const{ return p < x;}
-};
-template<bool GET_MAX = true>
-struct line_container: multiset<line, less<>>{
-	// (for doubles, use inf = 1/.0, div(a,b) = a/b)
-	const ll inf = LLONG_MAX;
-	ll div(ll a, ll b){
-		return a / b - ((a ^ b) < 0 && a % b);
-	}
-	bool isect(iterator x, iterator y){
-		if(y == this->end()){ x->p = inf; return false; }
-		if(x->d == y->d) x->p = x->k > y->k ? inf : -inf;
-		else x->p = div(y->k - x->k, x->d - y->d);
-		return x->p >= y->p;
-	}
-	void push(ll d, ll k){
-		if(!GET_MAX) d = -d, k = -k;
-		auto z = this->insert({d, k, 0}), y = z ++, x = y;
-		while(isect(y, z)) z = this->erase(z);
-		if(x != this->begin() && isect(-- x, y)) isect(x, y = this->erase(y));
-		while((y = x) != this->begin() && (-- x)->p >= y->p) isect(x, this->erase(y));
-	}
-	ll query(ll x){
-		assert(!this->empty());
-		auto l = *this->lower_bound(x);
-		return (l.d * x + l.k) * (GET_MAX ? 1 : -1);
-	}
-};
-
-// 156485479_3_8
 // Persistent Array
 // O(N) initalization, O(log N) per operations
 template<class T>
@@ -1638,7 +1755,7 @@ struct parray{
 	int k;
 	T val;
 	parray<T> *left, *right;
-	parray(int k, T val, parray<T>* left, parray<T>* right): k(k), val(val), left(left), right(right){}
+	parray(int k, T val, parray<T>* left, parray<T>* right): k(k), val(val), left(left), right(right){ }
 	static parray<T>* create(int i, int j, T init){
 		if(i > j) return 0;
 		else{
@@ -1658,7 +1775,7 @@ struct parray{
 	}
 };
 
-// 156485479_3_9
+// 156485479_3_8
 // Persistent Disjoint Set
 // O(N) initalization, O(log^2 N) per operations
 template<class T>
@@ -1707,52 +1824,7 @@ struct pdisjoint{
 	}
 };
 
-// 156485479_3_10
-// Li Chao Tree
-// O(log N) per update and query
-struct line{
-	ll d, k;
-	line(ll d = 0, ll k = -(ll)9e18): d(d), k(k){ }
-	ll eval(ll x){ return d * x + k; }
-	bool majorize(line X, ll L, ll R){ return eval(L) >= X.eval(L) && eval(R) >= X.eval(R); }
-};
-template<bool GET_MAX = true>
-struct lichao{
-	lichao *l = NULL, *r = NULL;
-	line S;
-	lichao(): S(line()){ }
-	void rm(){
-		if(l) l->rm();
-		if(r) r->rm();
-		delete this;
-	}
-	void mc(int i){
-		if(i){ if(!r) r = new lichao(); }
-		else{ if(!l) l = new lichao(); }
-	}
-	ll pq(ll X, ll L, ll R){
-		ll ans = S.eval(X), M = L + R >> 1;
-		if(X < M) return max(ans, l ? l->pq(X, L, M) : -(ll)9e18);
-		else return max(ans, r ? r->pq(X, M, R) : -(ll)9e18);
-	}
-	ll query(ll X, ll L, ll high){
-		return pq(X, L, high) * (GET_MAX ? 1 : -1);
-	}
-	void pi(line X, ll L, ll R){
-		if(X.majorize(S, L, R)) swap(X, S);
-		if(S.majorize(X, L, R)) return;
-		if(S.eval(L) < X.eval(L)) swap(X, S);
-		ll M = L + R >> 1;
-		if(X.eval(M) > S.eval(M)) swap(X, S), mc(0), l->pi(X, L, M);
-		else mc(1), r->pi(X, M, R);
-	}
-	void insert(line X, ll L, ll high){
-		if(!GET_MAX) X.d = -X.d, X.k = -X.k;
-		pi(X, L, high);
-	}
-};
-
-// 156485479_3_11
+// 156485479_3_9
 // Less-than-k Query, Distinct Value Query (Offline, Online)
 // O(N log N) processing
 template<class T, class BO, class IO>
@@ -1812,6 +1884,8 @@ struct offline_less_than_k_query{
 	}
 };
 
+
+// Online
 template<class T>
 struct node{
 	node *l = 0, *r = 0;
@@ -1934,7 +2008,7 @@ struct less_than_k_query{ // for less-than-k query, it only deals with numbers i
 	}
 };
 
-// 156485479_3_12
+// 156485479_3_10
 // Mo's Algorithm
 // O((N + Q) sqrt(N) F) where F is the processing time of ins and del.
 template<int B>
