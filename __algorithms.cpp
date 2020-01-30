@@ -1184,6 +1184,7 @@ void DCDP(vector<T> &dp, vector<T> &dp_next, const vector<vector<T>> &C, int low
 // dp[x][N] must be convex / concave
 // Special case: for all a<=b<=c<=d, C[a][c] + C[b][d] <= C[a][d] + C[b][d] ( C is a Monge array )
 // f(const ll &lambda, vi &previous, vi &count) returns the reduced DP value
+// WARNING: the cost function for f() should be doubled
 // O(log(high - low)) applications of f()
 template<class Pred>
 ll custom_binary_search(ll low, ll high, const ll &step, Pred p, bool is_left = true){
