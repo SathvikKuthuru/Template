@@ -66,7 +66,7 @@ Category
 	2.5. Kadane
 		156485479_2_5
 	2.6. DP Optimization
-		2.6.1. Convex Hull Trick (Line Containers / Li Chao Tree)
+		2.6.1. Convex Hull Trick ( Line Containers / Li Chao Tree )
 			2.6.1.1. Sorted Line Container
 				156485479_2_6_1_1
 			2.6.1.2. Line Container
@@ -77,6 +77,8 @@ Category
 			156485479_2_6_2
 		2.6.3. Knuth
 			156485479_2_6_3
+		2.6.4. Lagrange ( Aliens Trick, Wqs Binary Search )
+			156485479_2_6_4
 	2.7. Binary Search
 		156485479_2_7
 
@@ -258,16 +260,16 @@ struct combinatorics{
 			invfact[i] = invfact[i - 1] * inv[i] % mod;
 		}
 	}
-	ll c(int n, int r){
+	ll C(int n, int r){
 		return n < r ? 0 : fact[n] * invfact[r] % mod * invfact[n - r] % mod;
 	}
-	ll p(int n, int r){
+	ll P(int n, int r){
 		return n < r ? 0 : fact[n] * invfact[n - r] % mod;
 	}
-	ll h(int n, int r){
+	ll H(int n, int r){
 		return c(n + r - 1, r);
 	}
-	ll cat(int n, int k, int m){
+	ll Cat(int n, int k, int m){
 		if(m <= 0) return 0;
 		else if(k >= 0 && k < m) return c(n + k, k);
 		else if(k < n + m) return (c(n + k, k) - c(n + k, k - m) + mod) % mod;
@@ -367,11 +369,7 @@ vector<ull> factorize(ull n){
 // O(log^2 p)
 ll modexp(ll b, ll e, const ll &mod){
 	ll res = 1;
-	for(; e; b = b * b % mod, e /= 2){
-		if(e & 1){
-			res = res * b % mod;
-		}
-	}
+	for(; e; b = b * b % mod, e >>= 1) if(e & 1) res = res * b % mod;
 	return res;
 }
 ll modinv(ll b, const ll &mod){
@@ -388,9 +386,7 @@ ll sqrt(ll a, ll p){
 	int r = 0, m;
 	while(s % 2 == 0) ++ r, s /= 2;
 	/// find a non-square mod p
-	while(modexp(n, (p - 1) / 2, p) != p - 1){
-		++ n;
-	}
+	while(modexp(n, (p - 1) / 2, p) != p - 1) ++ n;
 	ll x = modexp(a, (s + 1) / 2, p);
 	ll b = modexp(a, s, p), g = modexp(n, s, p);
 	for(;; r = m){
@@ -1011,8 +1007,6 @@ vl interpolate(vl x, vl y, ll mod){
 // O(n log n)
 // (INCOMPLETE!)
 
-
-
 // 156485479_2_5
 // Kadane
 // O(N)
@@ -1032,6 +1026,7 @@ T kadane(const vector<T> &arr){
 // O(log N) per query, amortized O(1) for everything else
 struct line{
 	ll d, k, p;
+	int ind;
 	ll eval(ll x){ return d * x + k; }
 };
 template<bool GET_MAX = true>
@@ -1047,14 +1042,14 @@ struct sorted_line_container: deque<line>{
 		if(x == this->rend()) return false;
 		else{ x->p = div(y->k - x->k, x->d - y->d); return x->p >= y->p; }
 	}
-	void push(ll d, ll k){
-		if(!GET_MAX) d = -d, k = -k;
-		if(empty() || d < front().d){
-			push_front({d, k, 0}), isect_front(begin(), ++ begin());
+	void push(line L){
+		if(!GET_MAX) L.d = -L.d, L.k = -L.k;
+		if(empty() || L.d < front().d){
+			L.p = 0, push_front(L), isect_front(begin(), ++ begin());
 			while(size() >= 2 && isect_front(begin(), ++ begin())) erase(++ begin());
 		}
-		else if(d > back().d){
-			push_back({d, k, inf}); isect_back(++ rbegin(), rbegin());
+		else if(L.d > back().d){
+			L.p = inf, push_back(L); isect_back(++ rbegin(), rbegin());
 			while(size() >= 2 && isect_back(++ ++ rbegin(), ++ rbegin())) erase(-- -- end()), isect_back(++ rbegin(), rbegin());
 		}
 		else assert(false);
@@ -1098,9 +1093,10 @@ struct line_container: multiset<line, less<>>{
 		else x->p = div(y->k - x->k, x->d - y->d);
 		return x->p >= y->p;
 	}
-	void push(ll d, ll k){
-		if(!GET_MAX) d = -d, k = -k;
-		auto z = this->insert({d, k, 0}), y = z ++, x = y;
+	void push(line L){
+		if(!GET_MAX) L.d = -L.d, L.k = -L.k;
+		L.p = 0;
+		auto z = this->insert(L), y = z ++, x = y;
 		while(isect(y, z)) z = this->erase(z);
 		if(x != this->begin() && isect(-- x, y)) isect(x, y = this->erase(y));
 		while((y = x) != this->begin() && (-- x)->p >= y->p) isect(x, this->erase(y));
@@ -1140,26 +1136,26 @@ struct lichao{
 		if(X < M) return max(ans, l ? l->pq(X, L, M) : -(ll)9e18);
 		else return max(ans, r ? r->pq(X, M, R) : -(ll)9e18);
 	}
-	ll query(ll X, ll L, ll high){
-		return pq(X, L, high) * (GET_MAX ? 1 : -1);
+	ll query(ll X, ll L, ll R){
+		return pq(X, L, R) * (GET_MAX ? 1 : -1);
 	}
-	void pi(line X, ll L, ll R){
+	void pp(line X, ll L, ll R){
 		if(X.majorize(S, L, R)) swap(X, S);
 		if(S.majorize(X, L, R)) return;
 		if(S.eval(L) < X.eval(L)) swap(X, S);
 		ll M = L + R >> 1;
-		if(X.eval(M) > S.eval(M)) swap(X, S), mc(0), l->pi(X, L, M);
-		else mc(1), r->pi(X, M, R);
+		if(X.eval(M) > S.eval(M)) swap(X, S), mc(0), l->pp(X, L, M);
+		else mc(1), r->pp(X, M, R);
 	}
-	void insert(line X, ll L, ll high){
+	void push(line X, ll L, ll R){
 		if(!GET_MAX) X.d = -X.d, X.k = -X.k;
-		pi(X, L, high);
+		pp(X, L, R);
 	}
 };
 
 // 156485479_2_6_2
 // Divide and Conquer DP Optimization
-// Recurrence relation of form: dp_next[i] = min{j in [0, i)} (dp[j] + C[j][i])
+// Recurrence relation of form dp_next[i] = min{j in [0, i)} (dp[j] + C[j][i])
 // Must satisfy opt[j] <= opt[j + 1]
 // Special case: for all a<=b<=c<=d, C[a][c] + C[b][d] <= C[a][d] + C[b][d] ( C is a Monge array )
 // O(N log N)
@@ -1175,11 +1171,76 @@ void DCDP(vector<T> &dp, vector<T> &dp_next, const vector<vector<T>> &C, int low
 }
 
 // 156485479_2_6_3
-// Knuth DP optimization
-// Recurrence relation of form: dp[i][j] = min{k in [i, j)} (dp[i][k] + dp[k][j] + C[i][j])
-// C must satisfy C[a][c] + C[b][d] <= C[a][d] + C[b][d] (C is a monge array) and C[a][d] >= C[b][c] for all a<=b<=c<=d
+// Knuth DP Optimization
+// Recurrence relation of form dp[i][j] = min{k in [i, j)} (dp[i][k] + dp[k][j] + C[i][j])
+// Must satisfy C[a][c] + C[b][d] <= C[a][d] + C[b][d] (C is a monge array) and C[a][d] >= C[b][c] for all a<=b<=c<=d
 // It can be proved that opt[i][j - 1] <= opt[i][j] <= opt[i + 1][j]
 // Fill the dp table in increasing order of j - i.
+// O(N^2)
+
+// 156485479_2_6_4
+// Lagrange DP Optimization ( Aliens Trick, Wqs Binary Search )
+// Recurrence relation of form dp[i][j] = min{k in [0, j)} (dp[i - 1][k] + C[k + 1][j])
+// dp[x][N] must be convex / concave
+// Special case: for all a<=b<=c<=d, C[a][c] + C[b][d] <= C[a][d] + C[b][d] ( C is a Monge array )
+// f(const ll &lambda, vi &previous, vi &count) returns the reduced DP value
+// O(log(high - low)) applications of f()
+template<class Pred>
+ll custom_binary_search(ll low, ll high, const ll &step, Pred p, bool is_left = true){
+	assert(low < high && (high - low) % step == 0);
+	const ll rem = low % step;
+	if(is_left){
+		while(high - low > step){
+			ll mid = low + (high - low >> 1);
+			mid = mid / step * step + rem;
+			p(mid) ? low = mid : high = mid;
+		}
+		return low;
+	}
+	else{
+		while(high - low > step){
+			ll mid = low + (high - low >> 1);
+			mid = mid / step * step + rem;
+			p(mid) ? high = mid : low = mid;
+		}
+		return high;
+	}
+}
+template<class DP, bool GET_MAX = true>
+pair<ll, vi> LagrangeDP(int n, DP f, ll k, ll low, ll high){
+	ll resp, resq;
+	vi prevp(n + 1), cntp(n + 1), prevq(n + 1), cntq(n + 1);
+	auto pred = [&](ll lambda){
+		swap(resp, resq), swap(prevp, prevq), swap(cntp, cntq);
+		resp = f(lambda, prevp, cntp);
+		return GET_MAX ? cntp.back() <= k : cntp.back() >= k;
+	};
+	ll lambda = custom_binary_search(2 * low - 1, 2 * high + 1, 2, pred);
+	pred(lambda + 2), pred(lambda);
+	if(cntp.back() == k){
+		vi path{n};
+		for(int u = n; u; ) path.push_back(u = prevp[u]);
+		return {resp - lambda * k >> 1, path};
+	}
+	else{
+		resp = resp - lambda * cntp.back() >> 1, resq = resq - (lambda + 2) * cntq.back() >> 1;
+		ll res = resp + (resq - resp) / (cntq.back() - cntp.back()) * (k - cntp.back());
+		if(!GET_MAX) swap(prevp, prevq), swap(cntp, cntq);
+		int i = n, j = n, d = k - cntp.back();
+		while(1){
+			if(prevp[i] <= prevq[j]){
+				while(prevp[i] <= prevq[j] && cntq[j] - cntp[i] > d) j = prevq[j];
+				if(prevp[i] <= prevq[j] && cntq[j] - cntp[i] == d) break;
+			}
+			else i = prevp[i], j = prevq[j];
+		}
+		vi path{n};
+		for(int u = n; u != i; ) path.push_back(u = prevp[u]);
+		path.push_back(prevq[j]);
+		for(int u = prevq[j]; u; ) path.push_back(u = prevq[u]);
+		return {res, path};
+	}
+}
 
 // 156485479_2_7
 // Binary Search
@@ -1197,6 +1258,29 @@ ll custom_binary_search(ll low, ll high, Pred p, bool is_left = true){
 	else{
 		while(high - low > 1){
 			ll mid = low + (high - low >> 1);
+			p(mid) ? high = mid : low = mid;
+		}
+		return high;
+	}
+}
+
+// Binary search for numbers with the same remainder mod step
+template<class Pred>
+ll custom_binary_search(ll low, ll high, const ll &step, Pred p, bool is_left = true){
+	assert(low < high && (high - low) % step == 0);
+	const ll rem = low % step;
+	if(is_left){
+		while(high - low > step){
+			ll mid = low + (high - low >> 1);
+			mid = mid / step * step + rem;
+			p(mid) ? low = mid : high = mid;
+		}
+		return low;
+	}
+	else{
+		while(high - low > step){
+			ll mid = low + (high - low >> 1);
+			mid = mid / step * step + rem;
 			p(mid) ? high = mid : low = mid;
 		}
 		return high;
